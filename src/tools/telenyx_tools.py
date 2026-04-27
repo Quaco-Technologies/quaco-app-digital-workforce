@@ -19,9 +19,11 @@ _HEADERS = {
 
 def send_sms(to: str, body: str, from_number: str | None = None) -> dict:
     """Send an SMS message via Telenyx. Returns message ID and status."""
+    # Test-mode override: redirect all SMS to a single number
+    recipient = settings.telenyx_test_recipient or to
     payload = {
         "from": from_number or settings.telenyx_from_number,
-        "to": to,
+        "to": recipient,
         "text": body,
     }
     resp = httpx.post(f"{_BASE}/messages", json=payload, headers=_HEADERS, timeout=15)

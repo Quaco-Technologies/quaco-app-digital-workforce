@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     telenyx_api_key: str = ""
     telenyx_from_number: str = ""
     telenyx_webhook_secret: str = ""
+    # When set, ALL outbound SMS is redirected here (test mode)
+    telenyx_test_recipient: str = ""
 
     # Lumin — PDF contracts
     lumin_api_key: str = ""

@@ -357,10 +357,36 @@ async def run_acquisition_pipeline(
 
         repos.leads.update_status(lead.id, LeadStatus.SKIP_TRACED, investor_id=iid)  # type: ignore[arg-type]
 
+        # Auto-send opening SMS via the negotiation agent (Claude crafts the message)
+        phones = contact_data.get("phones", [])
+        if phones and offer.get("offer_price"):
+            try:
+                from src.agents.negotiation import start_outreach
+                outreach_result = await asyncio.to_thread(start_outreach, lead.id, repos)  # type: ignore[arg-type]
+                if outreach_result.get("sent"):
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    repos.db.table("outreach_messages").insert({
+                        "lead_id": str(lead.id),
+                        "campaign_id": str(campaign_id),
+                        "investor_id": str(iid),
+                        "phone": phones[0],
+                        "body": outreach_result.get("sms", ""),
+                        "message_id": outreach_result.get("message_id", ""),
+                        "status": "sent",
+                        "error": None,
+                        "sent_at": now_iso,
+                    }).execute()
+                    repos.db.table("leads").update({
+                        "outreach_status": "contacted",
+                        "updated_at": now_iso,
+                    }).eq("id", str(lead.id)).execute()
+            except Exception as exc:
+                logger.warning("pipeline.sms.failed", address=lead.address, error=str(exc)[:200])
+
         logger.info(
             "pipeline.lead.done",
             address=lead.address,
-            phones=len(contact_data.get("phones", [])),
+            phones=len(phones),
             arv=offer.get("arv"),
             offer=offer.get("offer_price"),
         )
@@ -369,7 +395,7 @@ async def run_acquisition_pipeline(
             "id": str(lead.id),
             "address": lead.address,
             "owner_name": contact_data.get("owner_name"),
-            "phones": contact_data.get("phones", []),
+            "phones": phones,
             "arv": offer.get("arv"),
             "offer": offer.get("offer_price"),
         }

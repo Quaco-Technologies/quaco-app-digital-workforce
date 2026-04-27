@@ -51,10 +51,20 @@ def list_campaign_leads(
     if not leads:
         return []
 
+    lead_ids = [str(l.id) for l in leads]
     contact_map = {
         str(c.lead_id): c
-        for c in repos.contacts.get_by_lead_ids([str(l.id) for l in leads])
+        for c in repos.contacts.get_by_lead_ids(lead_ids)
     }
+
+    # Fetch outreach_status for all leads in one query
+    outreach_rows = (
+        repos.db.table("leads")
+        .select("id,outreach_status")
+        .in_("id", lead_ids)
+        .execute().data or []
+    )
+    outreach_map = {r["id"]: r.get("outreach_status") for r in outreach_rows}
 
     result = []
     for lead in leads:
@@ -79,6 +89,7 @@ def list_campaign_leads(
             "investment_type": lead.investment_type,
             "photos": lead.photos or [],
             "status": lead.status,
+            "outreach_status": outreach_map.get(str(lead.id)),
             "phones": phones,
             "emails": c.emails if c else [],
             "contact_confidence": round(c.confidence, 2) if c else 0,

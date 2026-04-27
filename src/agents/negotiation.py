@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from anthropic import Anthropic
@@ -16,36 +16,46 @@ logger = get_logger(__name__)
 _client = Anthropic()
 
 _SYSTEM = """You are an expert real estate acquisitions specialist conducting SMS negotiation
-on behalf of an investor. Your goal: build rapport, understand seller's situation, and
-reach a price at or below max_offer.
+on behalf of a local investor. Your goal: build rapport, understand the seller's situation,
+and reach a purchase price at or below max_offer.
 
 Rules:
-- Keep messages 2-4 sentences max. This is SMS, not email.
+- Keep messages 2-4 sentences max. This is SMS — not email, not a letter.
 - Never reveal you are an AI.
-- Warm, direct, professional tone.
+- Warm, direct, professional tone. Use the seller's first name.
+- Never go above max_offer under any circumstances.
 
 Strategy:
-1. Opening: introduce yourself, express genuine interest.
-2. Discovery: ask about timeline, reason for selling, property condition.
-3. Offer: start at initial_offer. If rejected, ask what number works for them.
-4. Counter: move in 5-10% increments, never exceed max_offer.
-5. Agreement: once seller agrees, confirm the price clearly.
-6. If uninterested after 2 attempts: signal DEAD_LEAD.
+1. Opening: introduce yourself as a local investor, express genuine interest, ask if they'd
+   consider a cash offer.
+2. Discovery: ask about their timeline, reason for selling, any repairs needed.
+3. Offer: present initial_offer as a cash, as-is, quick-close number.
+4. Counter: if rejected, ask what works for them. Move in 5-10% increments.
+5. Agreement: once seller accepts, confirm the price clearly and say you'll send paperwork.
+6. If uninterested after 2 follow-up attempts: signal DEAD_LEAD.
 
-When done negotiating include ONE of these signals on its own line:
+When the negotiation concludes include ONE of these signals on its own line at the end:
   DEAL_AGREED:$<price>
   DEAD_LEAD
 
-Output only the SMS text (and signal if applicable). Nothing else."""
+Output ONLY the SMS text (and the signal line if applicable). No preamble, no commentary."""
 
 
-def _build_messages(lead: Any, deal: Any, contact: Any, history: List[Any]) -> List[Dict[str, Any]]:
-    context = (
+def _build_context(lead: Any, contact: Any) -> str:
+    arv = lead.arv or 0
+    offer = lead.offer_price or 0
+    # Max offer: up to 80% of ARV, always at least 15% above initial offer
+    max_offer = max(int(arv * 0.80), int(offer * 1.15)) if arv else int(offer * 1.15)
+    return (
         f"Property: {lead.address}, {lead.city}, {lead.state}\n"
-        f"Asking: ${(lead.price or 0):,}\n"
-        f"ARV: ${(deal.arv or 0):,} | Initial offer: ${(deal.initial_offer or 0):,} | Max: ${(deal.max_offer or 0):,}\n"
-        f"Owner: {contact.owner_name or 'Owner'}\n"
+        f"ARV: ${arv:,} | Initial offer: ${offer:,} | Max offer: ${max_offer:,}\n"
+        f"Owner name: {contact.owner_name or 'the owner'}\n"
+        f"Condition: {getattr(lead, 'photo_condition', None) or 'unknown'}\n"
     )
+
+
+def _build_messages(lead: Any, contact: Any, history: List[Any]) -> List[Dict[str, Any]]:
+    context = _build_context(lead, contact)
     messages: List[Dict[str, Any]] = [
         {"role": "user", "content": f"Context:\n{context}\n\nBegin negotiation."}
     ]
@@ -79,26 +89,27 @@ def _parse_response(text: str) -> Dict[str, Any]:
     }
 
 
-def start_outreach(lead_id: UUID, repos: Repositories) -> Dict[str, Any]:
-    lead = repos.leads.get(lead_id)
-    deal = repos.deals.get(lead_id)
-    contact = repos.contacts.get(lead_id)
-
-    if not lead or not deal or not contact:
-        return {"error": "missing lead, deal, or contact"}
-    if not contact.phones:
-        return {"error": "no phone number for owner"}
-
-    messages = _build_messages(lead, deal, contact, [])
+def _call_claude(messages: List[Dict[str, Any]]) -> str:
     response = _client.messages.create(
         model=settings.model,
-        max_tokens=512,
-        thinking={"type": "adaptive"},
+        max_tokens=256,
         system=_SYSTEM,
         messages=messages,
     )
+    return next((b.text for b in response.content if hasattr(b, "text")), "")
 
-    raw = next((b.text for b in response.content if hasattr(b, "text")), "")
+
+def start_outreach(lead_id: UUID, repos: Repositories) -> Dict[str, Any]:
+    lead = repos.leads.get(lead_id)
+    contact = repos.contacts.get(lead_id)
+
+    if not lead or not contact:
+        return {"error": "missing lead or contact"}
+    if not contact.phones:
+        return {"error": "no phone number for owner"}
+
+    messages = _build_messages(lead, contact, [])
+    raw = _call_claude(messages)
     parsed = _parse_response(raw)
     sms_text = parsed["sms"]
 
@@ -112,25 +123,16 @@ def start_outreach(lead_id: UUID, repos: Repositories) -> Dict[str, Any]:
 
 def handle_reply(lead_id: UUID, inbound_body: str, repos: Repositories) -> Dict[str, Any]:
     lead = repos.leads.get(lead_id)
-    deal = repos.deals.get(lead_id)
     contact = repos.contacts.get(lead_id)
 
-    if not lead or not deal or not contact:
-        return {"error": "missing data for lead"}
+    if not lead or not contact:
+        return {"error": "missing lead or contact"}
 
     repos.messages.append(lead_id, MessageRole.OWNER, inbound_body)
     history = repos.messages.get_conversation(lead_id)
-    messages = _build_messages(lead, deal, contact, history)
+    messages = _build_messages(lead, contact, history)
 
-    response = _client.messages.create(
-        model=settings.model,
-        max_tokens=512,
-        thinking={"type": "adaptive"},
-        system=_SYSTEM,
-        messages=messages,
-    )
-
-    raw = next((b.text for b in response.content if hasattr(b, "text")), "")
+    raw = _call_claude(messages)
     parsed = _parse_response(raw)
     sms_text = parsed["sms"]
 
