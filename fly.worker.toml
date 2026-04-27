@@ -1,0 +1,13 @@
+app = "digital-workforce-worker"
+primary_region = "dfw"
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[processes]
+  app = "python -m arq src.workers.settings.WorkerSettings"
