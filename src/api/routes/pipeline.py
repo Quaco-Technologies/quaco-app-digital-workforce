@@ -71,6 +71,7 @@ async def run_pipeline(
             _run_acquisition_async,
             buy_box_data=buy_box.model_dump(mode="json"),
             investor_id=str(investor_id),
+            max_leads=5,
         )
         mode = "running"
         logger.info("pipeline.background", county=buy_box.county, state=buy_box.state)
@@ -130,9 +131,9 @@ async def trigger_contract(
     return {"status": "queued", "lead_id": str(lead_id)}
 
 
-async def _run_acquisition_async(buy_box_data: Dict, investor_id: str) -> None:
+async def _run_acquisition_async(buy_box_data: Dict, investor_id: str, max_leads: int = 5) -> None:
     from src.services.acquisition_pipeline import run_acquisition_pipeline
     db = get_db()
     buy_box = BuyBox(**buy_box_data)
     inv_id = UUID(investor_id) if investor_id else None
-    await run_acquisition_pipeline(buy_box, inv_id, db, max_leads=100)
+    await run_acquisition_pipeline(buy_box, inv_id, db, max_leads=max_leads)

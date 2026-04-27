@@ -50,7 +50,7 @@ def calculate_offer(
 
     if not sqft or not avg_price_per_sqft:
         # Fall back to assessed value estimate if comps unavailable
-        if assessed_value_fallback and assessed_value_fallback > 0 and not hard_block:
+        if assessed_value_fallback and assessed_value_fallback > 0:
             est_arv = int(assessed_value_fallback / assessment_ratio)
             multiplier = 0.70
             condition_lower = (photo_condition or "").lower()

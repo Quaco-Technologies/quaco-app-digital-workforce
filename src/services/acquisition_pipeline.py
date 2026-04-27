@@ -24,9 +24,6 @@ from src.repositories import Repositories
 from src.tools.apify_tools import batch_enrich_contacts
 from src.tools.county_scraper import scrape_county_records
 from src.tools.offer_calculator import calculate_offer
-from src.tools.photo_analyzer import analyze_property_photos
-from src.tools.zillow_comps import get_zillow_comps
-from src.tools.fema_checker import lookup_zip
 
 logger = get_logger(__name__)
 
@@ -211,7 +208,10 @@ async def run_acquisition_pipeline(
 
     candidates = matching
 
-    # ── Step 3: Batch skip trace — one actor run per 100 candidates ─────────
+    # ── Step 3: Batch skip trace — cap candidates first so we don't trace 600+ ──
+    # Only trace up to 3x max_leads candidates; we'll cap again after to max_leads
+    candidates = candidates[: max_leads * 3]
+
     BATCH = 100
     qualified: List[Dict[str, Any]] = []
 
@@ -271,61 +271,6 @@ async def run_acquisition_pipeline(
         except Exception as exc:
             logger.warning("pipeline.step4.contact_error", address=lead.address, error=str(exc))
 
-        addr = f"{lead.address}, {lead.city}, {lead.state}"
-
-        # Zip lookup first, then fetch Zillow data (photos + comps together)
-        async def _zip_lookup() -> Optional[str]:
-            if lead.zip:
-                return lead.zip
-            z = await asyncio.to_thread(lookup_zip, addr)
-            if z:
-                _update_lead_partial(lead.id, repos, investor_id=iid, zip=z)  # type: ignore[arg-type]
-            return z
-
-        zip_code = await _zip_lookup()
-
-        # Fetch Zillow data: comps + property photos (one Apify call)
-        comps_data = await get_zillow_comps(
-            address=lead.address,
-            zip_code=zip_code,
-            subject_sqft=lead.sqft,
-            bedrooms=lead.bedrooms,
-            bathrooms=lead.bathrooms,
-        )
-        photos_list = comps_data.get("photos", [])
-        _update_lead_partial(lead.id, repos, investor_id=iid, comps=comps_data.get("comps"), photos=photos_list or None)  # type: ignore[arg-type]
-
-        # Use Zillow photo analysis if available, else fall back to Street View
-        photo_analysis = comps_data.get("photo_analysis")
-        if not photo_analysis or photo_analysis.get("confidence", 0) < 0.3:
-            photo_analysis = await analyze_property_photos(addr)
-
-        # Calculate repair estimate from breakdown
-        repair_breakdown = photo_analysis.get("repair_breakdown") or {}
-        repair_estimate = sum(v for v in repair_breakdown.values() if isinstance(v, (int, float)) and v) or None
-
-        _update_lead_partial(
-            lead.id,  # type: ignore[arg-type]
-            repos,
-            investor_id=iid,
-            photo_condition=photo_analysis.get("overall_condition"),
-            photo_roof_condition=photo_analysis.get("roof_condition"),
-            photo_vacant=photo_analysis.get("appears_vacant"),
-            photo_major_issues=photo_analysis.get("major_issues_visible"),
-            photo_confidence=photo_analysis.get("confidence"),
-            description=photo_analysis.get("summary") or None,
-            investment_type=photo_analysis.get("investment_type") or None,
-            repair_estimate=repair_estimate,
-            repair_breakdown=repair_breakdown if repair_breakdown else None,
-        )
-
-        # Offer — use Zillow comps if available, else fall back to assessed value
-        subject_sqft = lead.sqft
-        if not subject_sqft:
-            comp_sqfts = sorted(c["sqft"] for c in comps_data.get("comps", []) if c.get("sqft"))
-            if comp_sqfts:
-                subject_sqft = comp_sqfts[len(comp_sqfts) // 2]
-
         # State assessment ratios (assessed value → FMV)
         _ASSESSMENT_RATIO: Dict[str, float] = {
             "GA": 0.40, "TX": 0.85, "FL": 0.85, "NC": 1.00, "SC": 1.00,
@@ -333,14 +278,14 @@ async def run_acquisition_pipeline(
         assessed = lead.assessed_value or lead.price
 
         offer = calculate_offer(
-            sqft=subject_sqft,
-            avg_price_per_sqft=comps_data.get("avg_price_per_sqft"),
-            comp_count=comps_data.get("comp_count", 0),
-            photo_condition=photo_analysis.get("overall_condition"),
-            photo_major_issues=photo_analysis.get("major_issues_visible"),
+            sqft=lead.sqft,
+            avg_price_per_sqft=None,
+            comp_count=0,
+            photo_condition=None,
+            photo_major_issues=None,
             flood_risk_high=False,
-            photo_confidence=photo_analysis.get("confidence"),
-            comps_needs_review=comps_data.get("needs_review", True),
+            photo_confidence=None,
+            comps_needs_review=True,
             assessed_value_fallback=assessed,
             assessment_ratio=_ASSESSMENT_RATIO.get(buy_box.state.upper(), 0.70),
         )
