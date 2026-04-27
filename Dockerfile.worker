@@ -18,5 +18,4 @@ RUN python -m playwright install chromium --with-deps
 COPY src/ ./src/
 COPY main.py .
 
-EXPOSE 8000
-CMD ["python", "main.py"]
+CMD ["python", "-m", "arq", "src.workers.settings.WorkerSettings"]
