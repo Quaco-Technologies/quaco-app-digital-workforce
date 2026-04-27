@@ -1,0 +1,67 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]: Quaco
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e11]
+          - text: Dashboard
+        - link "Leads" [ref=e16] [cursor=pointer]:
+          - /url: /leads
+          - img [ref=e17]
+          - text: Leads
+        - link "Run Pipeline" [ref=e18] [cursor=pointer]:
+          - /url: /pipeline
+          - img [ref=e19]
+          - text: Run Pipeline
+        - link "Settings" [ref=e21] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e22]
+          - text: Settings
+      - button "Sign out" [ref=e26]:
+        - img [ref=e27]
+        - text: Sign out
+    - main [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - heading "Settings" [level=1] [ref=e33]
+          - paragraph [ref=e34]: Manage your account
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - img [ref=e38]
+            - generic:
+              - paragraph
+              - paragraph
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - generic [ref=e43]: Display Name
+              - textbox "Your name" [ref=e44]
+            - generic [ref=e45]:
+              - generic [ref=e46]: Email
+              - textbox [disabled] [ref=e47]
+              - paragraph [ref=e48]: Email not verified
+            - button "Save Changes" [disabled] [ref=e49]
+        - generic [ref=e50]:
+          - heading "Account" [level=2] [ref=e51]
+          - generic [ref=e52]:
+            - generic [ref=e53]:
+              - generic [ref=e54]: Provider
+              - generic [ref=e55]: email
+            - generic [ref=e56]:
+              - generic [ref=e57]: Member since
+              - generic [ref=e58]: —
+            - generic [ref=e59]:
+              - generic [ref=e60]: User ID
+              - generic [ref=e61]: …
+        - generic [ref=e62]:
+          - heading "Sign Out" [level=2] [ref=e63]
+          - paragraph [ref=e64]: You'll be redirected to the login page.
+          - button "Sign out" [ref=e65]:
+            - img [ref=e66]
+            - text: Sign out
+  - button "Open Next.js Dev Tools" [ref=e74] [cursor=pointer]:
+    - img [ref=e75]
+  - alert [ref=e78]

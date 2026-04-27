@@ -16,6 +16,8 @@ def calculate_offer(
     flood_risk_high: Optional[bool],
     photo_confidence: Optional[float],
     comps_needs_review: bool,
+    assessed_value_fallback: Optional[int] = None,
+    assessment_ratio: float = 0.70,
 ) -> Dict[str, Any]:
     """
     Pure Python offer calculation — no LLM.
@@ -32,30 +34,59 @@ def calculate_offer(
       - major damage visible
     """
     review_reasons: List[str] = []
+    hard_block = False
 
-    if comp_count < 3:
-        review_reasons.append(f"only {comp_count} comp(s) found — need minimum 3")
+    if comp_count < 2:
+        review_reasons.append(f"only {comp_count} comp(s) found")
+        hard_block = True
     if flood_risk_high:
         review_reasons.append("high-risk FEMA flood zone (A or AE)")
-    if photo_confidence is not None and photo_confidence < 0.4:
-        review_reasons.append(f"low photo confidence ({photo_confidence:.0%})")
+        hard_block = True
     if photo_major_issues:
         review_reasons.append("major damage visible in photos")
-
-    if review_reasons:
-        return {
-            "arv": None,
-            "offer_price": None,
-            "pipeline_recommendation": "needs_review",
-            "review_reasons": review_reasons,
-        }
+        hard_block = True
+    if photo_confidence is not None and photo_confidence < 0.4:
+        review_reasons.append(f"photo analysis unavailable — verify condition before offer")
 
     if not sqft or not avg_price_per_sqft:
+        # Fall back to assessed value estimate if comps unavailable
+        if assessed_value_fallback and assessed_value_fallback > 0 and not hard_block:
+            est_arv = int(assessed_value_fallback / assessment_ratio)
+            multiplier = 0.70
+            condition_lower = (photo_condition or "").lower()
+            if condition_lower == "poor":
+                multiplier = 0.50
+            elif condition_lower == "fair":
+                multiplier = 0.60
+            est_offer = _round_to_nearest(min(est_arv * multiplier, est_arv * 0.75), 500)
+            return {
+                "arv": est_arv,
+                "offer_price": est_offer,
+                "pipeline_recommendation": "needs_review",
+                "review_reasons": ["ARV estimated from county assessed value — verify with comps before offer"],
+            }
         return {
             "arv": None,
             "offer_price": None,
             "pipeline_recommendation": "needs_review",
             "review_reasons": ["missing sqft or comp data"],
+        }
+
+    if hard_block:
+        if assessed_value_fallback and assessed_value_fallback > 0:
+            est_arv = int(assessed_value_fallback / assessment_ratio)
+            est_offer = _round_to_nearest(est_arv * 0.70, 500)
+            return {
+                "arv": est_arv,
+                "offer_price": est_offer,
+                "pipeline_recommendation": "needs_review",
+                "review_reasons": review_reasons + ["ARV estimated from county assessed value"],
+            }
+        return {
+            "arv": None,
+            "offer_price": None,
+            "pipeline_recommendation": "needs_review",
+            "review_reasons": review_reasons,
         }
 
     arv = sqft * avg_price_per_sqft
@@ -81,9 +112,10 @@ def calculate_offer(
     offer = min(raw_offer, cap)
     offer_rounded = _round_to_nearest(offer, 500)
 
+    recommendation = "needs_review" if review_reasons else "pursue"
     return {
         "arv": arv,
         "offer_price": offer_rounded,
-        "pipeline_recommendation": "pursue",
-        "review_reasons": [],
+        "pipeline_recommendation": recommendation,
+        "review_reasons": review_reasons,
     }

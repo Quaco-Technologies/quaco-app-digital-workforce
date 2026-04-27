@@ -34,7 +34,8 @@ class DealRepository:
             self._db.table("deals")
             .select("*")
             .eq("lead_id", str(lead_id))
-            .single()
+            .limit(1)
             .execute()
         )
-        return Deal(**res.data) if res.data else None
+        rows = res.data or []
+        return Deal(**rows[0]) if rows else None

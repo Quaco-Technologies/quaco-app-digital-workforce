@@ -1,0 +1,54 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]: Quaco
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e11]
+          - text: Dashboard
+        - link "Leads" [ref=e16] [cursor=pointer]:
+          - /url: /leads
+          - img [ref=e17]
+          - text: Leads
+        - link "Run Pipeline" [ref=e18] [cursor=pointer]:
+          - /url: /pipeline
+          - img [ref=e19]
+          - text: Run Pipeline
+        - link "Settings" [ref=e21] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e22]
+          - text: Settings
+      - button "Sign out" [ref=e26]:
+        - img [ref=e27]
+        - text: Sign out
+    - main [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - heading "Leads" [level=1] [ref=e34]
+            - paragraph [ref=e35]: 0 qualified · 0 shown
+          - button "Download CSV" [disabled] [ref=e36]:
+            - img [ref=e37]
+            - text: Download CSV
+        - generic [ref=e40]:
+          - generic [ref=e42]:
+            - img [ref=e43]
+            - textbox "Search address or owner…" [ref=e46]
+          - generic [ref=e47]:
+            - button "All" [ref=e48]
+            - button "New" [ref=e49]
+            - button "Enriched" [ref=e50]
+            - button "Skip Traced" [ref=e51]
+            - button "Analyzed" [ref=e52]
+            - button "Outreach" [ref=e53]
+            - button "Negotiating" [ref=e54]
+            - button "Under Contract" [ref=e55]
+            - button "Dead" [ref=e56]
+            - button "Closed" [ref=e57]
+        - generic [ref=e59]: Loading…
+  - button "Open Next.js Dev Tools" [ref=e65] [cursor=pointer]:
+    - img [ref=e66]
+  - alert [ref=e69]

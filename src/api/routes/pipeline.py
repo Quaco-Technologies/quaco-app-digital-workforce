@@ -23,8 +23,8 @@ class PipelineRunRequest(BaseModel):
     max_price: int = 1_000_000
     min_beds: int = 2
     property_types: List[str] = ["single_family"]
-    investor_name: str
-    investor_email: str
+    investor_name: Optional[str] = None
+    investor_email: Optional[str] = None
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = get_logger(__name__)
@@ -54,7 +54,7 @@ async def run_pipeline(
             "task_run_acquisition",
             buy_box_data=buy_box.model_dump(mode="json"),
             investor_id=str(investor_id),
-            max_leads=10,
+            max_leads=100,
         )
         job_id = job.job_id if job else None
         mode = "queued"
@@ -66,9 +66,9 @@ async def run_pipeline(
             investor_id=str(investor_id),
         )
     else:
-        # No Redis — run inline as background task
+        # No Redis — run as async background task in the same event loop
         background_tasks.add_task(
-            _run_acquisition_sync,
+            _run_acquisition_async,
             buy_box_data=buy_box.model_dump(mode="json"),
             investor_id=str(investor_id),
         )
@@ -130,10 +130,9 @@ async def trigger_contract(
     return {"status": "queued", "lead_id": str(lead_id)}
 
 
-def _run_acquisition_sync(buy_box_data: Dict, investor_id: str) -> None:
-    import asyncio
+async def _run_acquisition_async(buy_box_data: Dict, investor_id: str) -> None:
     from src.services.acquisition_pipeline import run_acquisition_pipeline
     db = get_db()
     buy_box = BuyBox(**buy_box_data)
     inv_id = UUID(investor_id) if investor_id else None
-    asyncio.run(run_acquisition_pipeline(buy_box, inv_id, db, max_leads=10))
+    await run_acquisition_pipeline(buy_box, inv_id, db, max_leads=100)

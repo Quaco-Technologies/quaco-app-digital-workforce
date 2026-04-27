@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 """
-6-step acquisition pipeline:
-  1. Scrape county records (Browserbase + Claude)
-  2. FEMA flood zone check (Browserbase + Claude)
-  3. Property photos + vision analysis (Browserbase + Claude vision)
-  4. Zillow sold comps (Browserbase + Claude)
-  5. Offer calculation (pure Python)
-  6. Apify skip-trace enrichment (for 'pursue' leads only)
+Acquisition pipeline — 4 steps:
+  1. Scrape county assessor records (Firecrawl AI)
+  2. Buy-box filter
+  3. Skip trace every match — discard leads with no phone number
+  4. Zillow sold comps → ARV → offer calculation → save
 """
 
 import asyncio
@@ -19,15 +17,16 @@ from supabase import Client
 
 from src.core.logging import get_logger
 from src.models.buy_box import BuyBox
+from src.models.campaign import Campaign
 from src.models.contact import Contact
 from src.models.lead import Lead, LeadStatus
 from src.repositories import Repositories
-from src.tools.apify_tools import enrich_contact
+from src.tools.apify_tools import batch_enrich_contacts
 from src.tools.county_scraper import scrape_county_records
-from src.tools.fema_checker import check_fema_flood_zone, lookup_zip
 from src.tools.offer_calculator import calculate_offer
 from src.tools.photo_analyzer import analyze_property_photos
 from src.tools.zillow_comps import get_zillow_comps
+from src.tools.fema_checker import lookup_zip
 
 logger = get_logger(__name__)
 
@@ -36,11 +35,32 @@ logger = get_logger(__name__)
 # Buy-box filter
 # ---------------------------------------------------------------------------
 
+_RESIDENTIAL_KEYWORDS = {
+    "single_family": ["single", "sfr", "house", "residential", "home", "detached"],
+    "multi_family":  ["multi", "duplex", "triplex", "quadplex", "apartment"],
+    "condo":         ["condo", "condominium", "unit"],
+    "townhouse":     ["townhouse", "townhome", "town"],
+}
+
+
+def _normalise_property_type(raw: str) -> str:
+    s = raw.lower().strip()
+    for canonical, keywords in _RESIDENTIAL_KEYWORDS.items():
+        if any(k in s for k in keywords):
+            return canonical
+    return s
+
+
 def _matches_buy_box(rec: Dict[str, Any], buy_box: BuyBox) -> bool:
-    """Return True if a raw county record falls within the buy box."""
-    prop_type = (rec.get("property_type") or "").lower().replace(" ", "_")
+    raw_type = (rec.get("property_type") or "").strip()
+    if raw_type:
+        prop_type = _normalise_property_type(raw_type)
+        rec["property_type"] = prop_type
+    else:
+        prop_type = ""
+
     if buy_box.property_types and prop_type:
-        if not any(t in prop_type or prop_type in t for t in buy_box.property_types):
+        if not any(t == prop_type or t in prop_type or prop_type in t for t in buy_box.property_types):
             return False
 
     sqft = rec.get("sqft")
@@ -57,10 +77,10 @@ def _matches_buy_box(rec: Dict[str, Any], buy_box: BuyBox) -> bool:
     assessed = rec.get("assessed_value") or rec.get("price")
     if assessed:
         try:
-            assessed_int = int(float(str(assessed)))
-            if buy_box.max_price and assessed_int > buy_box.max_price:
+            v = int(float(str(assessed)))
+            if buy_box.max_price and v > buy_box.max_price:
                 return False
-            if buy_box.min_price and assessed_int < buy_box.min_price:
+            if buy_box.min_price and v < buy_box.min_price:
                 return False
         except (ValueError, TypeError):
             pass
@@ -77,13 +97,14 @@ def _matches_buy_box(rec: Dict[str, Any], buy_box: BuyBox) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Step helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _save_lead(rec: Dict[str, Any], buy_box: BuyBox, investor_id: Optional[UUID], repos: Repositories) -> Lead:
+def _save_lead(rec: Dict[str, Any], buy_box: BuyBox, investor_id: Optional[UUID], repos: Repositories, campaign_id: Optional[UUID] = None) -> Lead:
     lead = Lead(
         source="county_records",
         investor_id=investor_id,
+        campaign_id=campaign_id,
         address=rec["address"],
         city=rec.get("city") or buy_box.city,
         state=rec.get("state") or buy_box.state,
@@ -104,7 +125,6 @@ def _save_lead(rec: Dict[str, Any], buy_box: BuyBox, investor_id: Optional[UUID]
 
 
 def _update_lead_partial(lead_id: UUID, repos: Repositories, investor_id: Optional[UUID] = None, **fields: Any) -> None:
-    """Patch arbitrary columns on a lead row, scoped to investor when provided."""
     payload = {k: v for k, v in fields.items() if v is not None}
     payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     q = repos.leads._db.table("leads").update(payload).eq("id", str(lead_id))
@@ -114,13 +134,11 @@ def _update_lead_partial(lead_id: UUID, repos: Repositories, investor_id: Option
 
 
 def _save_contact(lead_id: UUID, contact_data: Dict[str, Any], repos: Repositories) -> None:
-    phones = contact_data.get("phones", [])
-    emails = contact_data.get("emails", [])
     contact = Contact(
         lead_id=lead_id,
         owner_name=contact_data.get("owner_name"),
-        phones=phones,
-        emails=emails,
+        phones=contact_data.get("phones", []),
+        emails=contact_data.get("emails", []),
         mailing_address=contact_data.get("mailing_address", ""),
         confidence=float(contact_data.get("confidence", 0)),
     )
@@ -135,116 +153,138 @@ async def run_acquisition_pipeline(
     buy_box: BuyBox,
     investor_id: Optional[UUID],
     db: Client,
-    max_leads: int = 10,
+    max_leads: int = 100,
+    campaign_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Run all 6 steps. Returns a summary dict with per-lead results.
-    max_leads caps how many leads are processed through steps 2-6 in one run.
-    """
     repos = Repositories(db)
+
+    # ── Create campaign record ─────────────────────────────────────────────
+    from calendar import month_abbr
+    from datetime import datetime
+    now = datetime.now()
+    auto_name = campaign_name or f"{buy_box.county} County, {buy_box.state} · {month_abbr[now.month]} {now.year}"
+    campaign = repos.campaigns.create(Campaign(
+        investor_id=investor_id,
+        name=auto_name,
+        county=buy_box.county,
+        state=buy_box.state,
+        city=buy_box.city,
+        min_price=buy_box.min_price,
+        max_price=buy_box.max_price,
+        property_types=buy_box.property_types,
+        status="running",
+    ))
+    campaign_id = campaign.id
+    logger.info("pipeline.campaign_created", campaign_id=str(campaign_id), name=auto_name)
+
     summary: Dict[str, Any] = {
+        "campaign_id": str(campaign_id),
         "county": buy_box.county,
         "state": buy_box.state,
         "scraped": 0,
         "filtered": 0,
+        "skip_traced": 0,
         "saved": 0,
-        "pursue": 0,
-        "needs_review": 0,
-        "skip": 0,
-        "enriched": 0,
         "leads": [],
     }
 
-    # ── Step 1: Scrape county records ─────────────────────────────────────────
+    # ── Step 1: Scrape county assessor records ─────────────────────────────
     logger.info("pipeline.step1.start", county=buy_box.county, state=buy_box.state)
     raw_records = await scrape_county_records(buy_box.county, buy_box.state, buy_box.city)
     summary["scraped"] = len(raw_records)
     logger.info("pipeline.step1.done", scraped=len(raw_records))
 
-    # Filter to buy box
+    # ── Step 2: Buy-box filter ─────────────────────────────────────────────
     matching = [r for r in raw_records if _matches_buy_box(r, buy_box)]
     summary["filtered"] = len(matching)
-    logger.info("pipeline.step1.filtered", matching=len(matching))
+    if raw_records and not matching:
+        sample = raw_records[0]
+        logger.warning(
+            "pipeline.step2.all_filtered",
+            sample_type=sample.get("property_type"),
+            sample_price=sample.get("assessed_value") or sample.get("price"),
+            buy_box_types=buy_box.property_types,
+            buy_box_min=buy_box.min_price,
+            buy_box_max=buy_box.max_price,
+        )
+    logger.info("pipeline.step2.filtered", matching=len(matching))
 
-    # Save all matching leads first
-    saved_leads: List[Lead] = []
-    for rec in matching:
-        if not rec.get("address", "").strip():
-            continue
+    candidates = matching
+
+    # ── Step 3: Batch skip trace — one actor run per 100 candidates ─────────
+    BATCH = 100
+    qualified: List[Dict[str, Any]] = []
+
+    for batch_start in range(0, len(candidates), BATCH):
+        batch = candidates[batch_start: batch_start + BATCH]
+        logger.info("pipeline.step3.batch", start=batch_start, size=len(batch))
         try:
-            lead = _save_lead(rec, buy_box, investor_id, repos)
-            saved_leads.append(lead)
+            contacts = await asyncio.to_thread(
+                batch_enrich_contacts,
+                batch,
+                buy_box.city,
+                buy_box.state,
+            )
         except Exception as exc:
-            logger.warning("pipeline.step1.save_error", address=rec.get("address"), error=str(exc))
+            logger.warning("pipeline.step3.batch_error", start=batch_start, error=str(exc)[:200])
+            continue
 
-    summary["saved"] = len(saved_leads)
-    logger.info("pipeline.step1.saved", saved=len(saved_leads))
+        for rec in batch:
+            addr = rec["address"]
+            contact = contacts.get(addr)
+            if contact and contact.get("phones"):
+                logger.info("pipeline.step3.found", address=addr, phones=len(contact["phones"]))
+                qualified.append({**rec, "_contact": contact})
+            else:
+                logger.info("pipeline.step3.no_phone", address=addr)
 
-    # Cap how many leads we run through steps 2-6 in this pass
-    process_leads = saved_leads[:max_leads]
+    summary["skip_traced"] = len(qualified)
+    logger.info("pipeline.step3.done", qualified=len(qualified), discarded=len(candidates) - len(qualified))
 
-    # ── Steps 2-6 per lead ───────────────────────────────────────────────────
-    for lead in process_leads:
-        lead_result: Dict[str, Any] = {
-            "id": str(lead.id),
-            "address": lead.address,
-            "flood_zone": None,
-            "photo_condition": None,
-            "comp_count": 0,
-            "arv": None,
-            "offer": None,
-            "recommendation": None,
-            "review_reasons": [],
-            "skip_traced": False,
-        }
+    # Cap enrichment+save at max_leads (skip trace ran on everything — only saving is capped)
+    qualified = qualified[:max_leads]
 
-        iid = investor_id  # shorthand for investor_id filter in all partial updates
+    repos.campaigns.update(campaign_id, scraped_count=summary["scraped"], qualified_count=len(qualified))
 
-        # ── Step 2: FEMA flood zone ───────────────────────────────────────────
-        logger.info("pipeline.step2.start", address=lead.address)
-        fema = await check_fema_flood_zone(f"{lead.address}, {lead.city}, {lead.state}")
-        _update_lead_partial(
-            lead.id,  # type: ignore[arg-type]
-            repos,
-            investor_id=iid,
-            flood_zone=fema.get("zone"),
-            flood_risk_high=fema.get("flood_risk_high"),
-        )
-        lead_result["flood_zone"] = fema.get("zone")
-        logger.info("pipeline.step2.done", address=lead.address, zone=fema.get("zone"))
+    if not qualified:
+        repos.campaigns.update(campaign_id, status="complete", saved_count=0)
+        logger.info("pipeline.complete", **{k: summary[k] for k in ["county", "scraped", "filtered", "skip_traced", "saved"]})
+        return summary
 
-        # ── Step 3: Property photos ───────────────────────────────────────────
-        logger.info("pipeline.step3.start", address=lead.address)
-        photos = await analyze_property_photos(f"{lead.address}, {lead.city}, {lead.state}")
-        _update_lead_partial(
-            lead.id,  # type: ignore[arg-type]
-            repos,
-            investor_id=iid,
-            photo_condition=photos.get("overall_condition"),
-            photo_roof_condition=photos.get("roof_condition"),
-            photo_vacant=photos.get("appears_vacant"),
-            photo_major_issues=photos.get("major_issues_visible"),
-            photo_confidence=photos.get("confidence"),
-        )
-        lead_result["photo_condition"] = photos.get("overall_condition")
-        logger.info(
-            "pipeline.step3.done",
-            address=lead.address,
-            condition=photos.get("overall_condition"),
-            confidence=photos.get("confidence"),
-        )
+    # ── Step 4: Save leads then enrich with comps + offer + photos ─────────
+    async def _enrich_lead(rec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        contact_data = rec.pop("_contact")
+        iid = investor_id
 
-        # ── Step 4: Zillow comps ──────────────────────────────────────────────
-        # Resolve zip if missing (Census geocoder)
-        zip_code = lead.zip
-        if not zip_code:
-            full_addr = f"{lead.address}, {lead.city}, {lead.state}"
-            zip_code = await asyncio.to_thread(lookup_zip, full_addr)
-            if zip_code:
-                _update_lead_partial(lead.id, repos, investor_id=iid, zip=zip_code)  # type: ignore[arg-type]
-                logger.info("pipeline.step4.zip_lookup", address=lead.address, zip=zip_code)
+        # Save the lead first
+        try:
+            lead = _save_lead(rec, buy_box, iid, repos, campaign_id=campaign_id)
+        except Exception as exc:
+            logger.warning("pipeline.step4.save_error", address=rec.get("address"), error=str(exc))
+            return None
 
-        logger.info("pipeline.step4.start", address=lead.address)
+        # Save contact info
+        try:
+            _save_contact(lead.id, contact_data, repos)  # type: ignore[arg-type]
+            if contact_data.get("owner_name"):
+                _update_lead_partial(lead.id, repos, investor_id=iid, owner_name=contact_data["owner_name"])  # type: ignore[arg-type]
+        except Exception as exc:
+            logger.warning("pipeline.step4.contact_error", address=lead.address, error=str(exc))
+
+        addr = f"{lead.address}, {lead.city}, {lead.state}"
+
+        # Zip lookup first, then fetch Zillow data (photos + comps together)
+        async def _zip_lookup() -> Optional[str]:
+            if lead.zip:
+                return lead.zip
+            z = await asyncio.to_thread(lookup_zip, addr)
+            if z:
+                _update_lead_partial(lead.id, repos, investor_id=iid, zip=z)  # type: ignore[arg-type]
+            return z
+
+        zip_code = await _zip_lookup()
+
+        # Fetch Zillow data: comps + property photos (one Apify call)
         comps_data = await get_zillow_comps(
             address=lead.address,
             zip_code=zip_code,
@@ -252,37 +292,59 @@ async def run_acquisition_pipeline(
             bedrooms=lead.bedrooms,
             bathrooms=lead.bathrooms,
         )
+        photos_list = comps_data.get("photos", [])
+        _update_lead_partial(lead.id, repos, investor_id=iid, comps=comps_data.get("comps"), photos=photos_list or None)  # type: ignore[arg-type]
+
+        # Use Zillow photo analysis if available, else fall back to Street View
+        photo_analysis = comps_data.get("photo_analysis")
+        if not photo_analysis or photo_analysis.get("confidence", 0) < 0.3:
+            photo_analysis = await analyze_property_photos(addr)
+
+        # Calculate repair estimate from breakdown
+        repair_breakdown = photo_analysis.get("repair_breakdown") or {}
+        repair_estimate = sum(v for v in repair_breakdown.values() if isinstance(v, (int, float)) and v) or None
+
         _update_lead_partial(
             lead.id,  # type: ignore[arg-type]
             repos,
             investor_id=iid,
-            comps=comps_data.get("comps"),
+            photo_condition=photo_analysis.get("overall_condition"),
+            photo_roof_condition=photo_analysis.get("roof_condition"),
+            photo_vacant=photo_analysis.get("appears_vacant"),
+            photo_major_issues=photo_analysis.get("major_issues_visible"),
+            photo_confidence=photo_analysis.get("confidence"),
+            description=photo_analysis.get("summary") or None,
+            investment_type=photo_analysis.get("investment_type") or None,
+            repair_estimate=repair_estimate,
+            repair_breakdown=repair_breakdown if repair_breakdown else None,
         )
-        lead_result["comp_count"] = comps_data.get("comp_count", 0)
-        logger.info("pipeline.step4.done", address=lead.address, comps=comps_data.get("comp_count"))
 
-        # ── Step 5: Offer calculation ─────────────────────────────────────────
-        # Estimate sqft from comps median if county record didn't include it
+        # Offer — use Zillow comps if available, else fall back to assessed value
         subject_sqft = lead.sqft
         if not subject_sqft:
-            comp_sqfts = [c["sqft"] for c in comps_data.get("comps", []) if c.get("sqft")]
+            comp_sqfts = sorted(c["sqft"] for c in comps_data.get("comps", []) if c.get("sqft"))
             if comp_sqfts:
-                comp_sqfts_sorted = sorted(comp_sqfts)
-                mid = len(comp_sqfts_sorted) // 2
-                subject_sqft = comp_sqfts_sorted[mid]
-                logger.info("pipeline.step5.sqft_estimated", address=lead.address, estimated_sqft=subject_sqft)
+                subject_sqft = comp_sqfts[len(comp_sqfts) // 2]
 
-        logger.info("pipeline.step5.start", address=lead.address)
+        # State assessment ratios (assessed value → FMV)
+        _ASSESSMENT_RATIO: Dict[str, float] = {
+            "GA": 0.40, "TX": 0.85, "FL": 0.85, "NC": 1.00, "SC": 1.00,
+        }
+        assessed = lead.assessed_value or lead.price
+
         offer = calculate_offer(
             sqft=subject_sqft,
             avg_price_per_sqft=comps_data.get("avg_price_per_sqft"),
             comp_count=comps_data.get("comp_count", 0),
-            photo_condition=photos.get("overall_condition"),
-            photo_major_issues=photos.get("major_issues_visible"),
-            flood_risk_high=fema.get("flood_risk_high"),
-            photo_confidence=photos.get("confidence"),
+            photo_condition=photo_analysis.get("overall_condition"),
+            photo_major_issues=photo_analysis.get("major_issues_visible"),
+            flood_risk_high=False,
+            photo_confidence=photo_analysis.get("confidence"),
             comps_needs_review=comps_data.get("needs_review", True),
+            assessed_value_fallback=assessed,
+            assessment_ratio=_ASSESSMENT_RATIO.get(buy_box.state.upper(), 0.70),
         )
+
         _update_lead_partial(
             lead.id,  # type: ignore[arg-type]
             repos,
@@ -292,60 +354,46 @@ async def run_acquisition_pipeline(
             pipeline_recommendation=offer.get("pipeline_recommendation"),
             review_reasons=offer.get("review_reasons"),
         )
-        lead_result["arv"] = offer.get("arv")
-        lead_result["offer"] = offer.get("offer_price")
-        lead_result["recommendation"] = offer.get("pipeline_recommendation")
-        review_reasons = list(offer.get("review_reasons", []))
-        if subject_sqft and not lead.sqft:
-            review_reasons.append(f"sqft estimated from comps ({subject_sqft} sqft) — verify before offer")
-        lead_result["review_reasons"] = review_reasons
+
+        repos.leads.update_status(lead.id, LeadStatus.SKIP_TRACED, investor_id=iid)  # type: ignore[arg-type]
+
         logger.info(
-            "pipeline.step5.done",
+            "pipeline.lead.done",
             address=lead.address,
+            phones=len(contact_data.get("phones", [])),
             arv=offer.get("arv"),
             offer=offer.get("offer_price"),
-            recommendation=offer.get("pipeline_recommendation"),
         )
 
-        rec = offer.get("pipeline_recommendation", "needs_review")
-        if rec == "pursue":
-            summary["pursue"] += 1
-        elif rec == "needs_review":
-            summary["needs_review"] += 1
-        else:
-            summary["skip"] += 1
+        return {
+            "id": str(lead.id),
+            "address": lead.address,
+            "owner_name": contact_data.get("owner_name"),
+            "phones": contact_data.get("phones", []),
+            "arv": offer.get("arv"),
+            "offer": offer.get("offer_price"),
+        }
 
-        # ── Step 6: Skip trace (pursue only) ─────────────────────────────────
-        if rec == "pursue":
-            logger.info("pipeline.step6.start", address=lead.address)
-            try:
-                owner = lead.owner_name or ""
-                contact_data = enrich_contact(
-                    f"{lead.address}, {lead.city}, {lead.state}",
-                    owner,
-                )
-                _save_contact(lead.id, contact_data, repos)  # type: ignore[arg-type]
-                repos.leads.update_status(lead.id, LeadStatus.ENRICHED, investor_id=iid)  # type: ignore[arg-type]
-                lead_result["skip_traced"] = True
-                summary["enriched"] += 1
-                logger.info(
-                    "pipeline.step6.done",
-                    address=lead.address,
-                    phones=len(contact_data.get("phones", [])),
-                    emails=len(contact_data.get("emails", [])),
-                )
-            except Exception as exc:
-                logger.error("pipeline.step6.error", address=lead.address, error=str(exc))
+    enrich_sem = asyncio.Semaphore(5)  # cap concurrent Playwright browser sessions
 
-        summary["leads"].append(lead_result)
+    async def _enrich_gated(rec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        async with enrich_sem:
+            return await _enrich_lead(rec)
+
+    lead_results = await asyncio.gather(*[_enrich_gated(r) for r in qualified])
+    saved = [r for r in lead_results if r is not None]
+    summary["saved"] = len(saved)
+    summary["leads"] = saved
+
+    repos.campaigns.update(campaign_id, status="complete", saved_count=len(saved))
 
     logger.info(
         "pipeline.complete",
+        campaign_id=str(campaign_id),
         county=buy_box.county,
         scraped=summary["scraped"],
+        filtered=summary["filtered"],
+        skip_traced=summary["skip_traced"],
         saved=summary["saved"],
-        pursue=summary["pursue"],
-        needs_review=summary["needs_review"],
-        enriched=summary["enriched"],
     )
     return summary

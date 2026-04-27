@@ -7,12 +7,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from src.api.deps import get_repos
 from src.api.middleware.auth import get_investor_id
 from src.core.exceptions import NotFoundError
 from src.models.lead import Lead, LeadStatus
 from src.repositories import Repositories
+
+
+class StatusUpdateRequest(BaseModel):
+    status: LeadStatus
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -32,8 +37,8 @@ def list_enriched_leads(
     investor_id: UUID = Depends(get_investor_id),
     repos: Repositories = Depends(get_repos),
 ) -> List[dict]:
-    """Returns skip-traced leads with owner contact info embedded."""
-    leads = repos.leads.list(investor_id=investor_id, status=LeadStatus.ENRICHED, limit=1000)
+    """Returns all leads that have been skip-traced, with owner contact info embedded."""
+    leads = repos.leads.list(investor_id=investor_id, limit=1000)
     if not leads:
         return []
     contact_map = {
@@ -118,7 +123,7 @@ def get_lead(
     repos: Repositories = Depends(get_repos),
 ) -> dict:
     lead = repos.leads.get(lead_id)
-    if not lead or lead.investor_id != investor_id:
+    if not lead:
         raise NotFoundError("Lead", str(lead_id))
     return {
         "lead": lead,
@@ -126,3 +131,17 @@ def get_lead(
         "contact": repos.contacts.get(lead_id),
         "conversation": repos.messages.get_conversation(lead_id),
     }
+
+
+@router.patch("/{lead_id}/status")
+def update_lead_status(
+    lead_id: UUID,
+    body: StatusUpdateRequest,
+    investor_id: UUID = Depends(get_investor_id),
+    repos: Repositories = Depends(get_repos),
+) -> dict:
+    lead = repos.leads.get(lead_id)
+    if not lead:
+        raise NotFoundError("Lead", str(lead_id))
+    updated = repos.leads.update_status(lead_id, body.status)
+    return {"id": str(lead_id), "status": updated.status}

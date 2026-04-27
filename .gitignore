@@ -16,3 +16,9 @@ node_modules/
 .next/
 web/.next/
 web/node_modules/
+.playwright-mcp/
+atlanta_result.json
+dallas_test_result.json
+test_atlanta.py
+test_dallas.py
+run_pipeline_test.py

@@ -37,6 +37,7 @@ class Lead(BaseModel):
     status: LeadStatus = LeadStatus.NEW
     investor_id: Optional[UUID] = None
     buy_box_id: Optional[UUID] = None
+    campaign_id: Optional[UUID] = None
     agreed_price: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -59,10 +60,16 @@ class Lead(BaseModel):
     photo_vacant: Optional[bool] = None
     photo_major_issues: Optional[bool] = None
     photo_confidence: Optional[float] = None
+    investment_type: Optional[str] = None
 
     # Steps 4+5: Comps + offer
     comps: Optional[List[Dict[str, Any]]] = None
     arv: Optional[int] = None
     offer_price: Optional[int] = None
+    repair_estimate: Optional[int] = None
+    repair_breakdown: Optional[Dict[str, Any]] = None
     pipeline_recommendation: Optional[str] = None
     review_reasons: Optional[List[str]] = None
+
+    # Photos
+    photos: Optional[List[str]] = None

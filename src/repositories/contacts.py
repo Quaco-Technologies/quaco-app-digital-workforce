@@ -33,12 +33,13 @@ class ContactRepository:
             self._db.table("contacts")
             .select("*")
             .eq("lead_id", str(lead_id))
-            .single()
+            .limit(1)
             .execute()
         )
-        if not res.data:
+        rows = res.data or []
+        if not rows:
             return None
-        data = res.data
+        data = rows[0]
         if isinstance(data.get("phones"), str):
             data["phones"] = json.loads(data["phones"])
         if isinstance(data.get("emails"), str):

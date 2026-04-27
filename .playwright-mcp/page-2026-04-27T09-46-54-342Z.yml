@@ -1,0 +1,42 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]: Quaco
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e11]
+          - text: Dashboard
+        - link "Leads" [ref=e16] [cursor=pointer]:
+          - /url: /leads
+          - img [ref=e17]
+          - text: Leads
+        - link "Run Pipeline" [ref=e18] [cursor=pointer]:
+          - /url: /pipeline
+          - img [ref=e19]
+          - text: Run Pipeline
+        - link "Settings" [ref=e21] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e22]
+          - text: Settings
+      - generic [ref=e25]:
+        - paragraph [ref=e71]: test@quaco.io
+        - button "Sign out" [ref=e26]:
+          - img [ref=e27]
+          - text: Sign out
+    - main [ref=e30]:
+      - generic [ref=e2766]: Lead not found.
+  - generic [ref=e64] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e65]:
+      - img [ref=e66]
+    - generic [ref=e2767]:
+      - button "Open issues overlay" [ref=e2768]:
+        - generic [ref=e2769]:
+          - generic [ref=e2770]: "0"
+          - generic [ref=e2771]: "1"
+        - generic [ref=e2772]: Issue
+      - button "Collapse issues badge" [ref=e2773]:
+        - img [ref=e2774]
+  - alert [ref=e69]

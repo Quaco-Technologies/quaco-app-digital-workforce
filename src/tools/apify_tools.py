@@ -113,54 +113,203 @@ def get_tax_delinquent_list(county: str, state: str, max_results: int = 100) -> 
 
 
 # ---------------------------------------------------------------------------
-# Contact enrichment (skip tracing)
+# Contact enrichment (skip tracing) — Apify one-api/skip-trace
 # ---------------------------------------------------------------------------
+
+def _fmt_street_citystatezip(address: str) -> str:
+    """'123 Main St, Atlanta, GA 30301' → '123 Main St; Atlanta, GA 30301'"""
+    parts = address.split(",", 1)
+    if len(parts) == 2:
+        return f"{parts[0].strip()}; {parts[1].strip()}"
+    return address
+
 
 def enrich_contact(property_address: str, owner_name: str = "") -> dict:
     """
     Skip trace a property owner using one-api/skip-trace.
-    Works with address alone — owner_name improves accuracy but isn't required.
-    The actor will attempt to find the owner name if not provided.
+
+    Correct input format (discovered from working runs):
+      street_citystatezip: ["STREET; City, State Zip"]
+      name: ["Full Name; City, State Zip"]  (optional, improves match)
     """
-    run_input: dict = {"address": property_address, "maxResults": 3}
+    street_entry = _fmt_street_citystatezip(property_address)
+
+    run_input: dict = {
+        "street_citystatezip": [street_entry],
+        "max_results_per_query": 5,
+        "max_results": 5,
+    }
 
     if owner_name:
-        parts = owner_name.strip().split()
-        run_input["firstName"] = parts[0]
-        if len(parts) > 1:
-            run_input["lastName"] = " ".join(parts[1:])
+        # Extract city/state/zip from the address to pair with the name
+        parts = property_address.split(",", 1)
+        city_state_zip = parts[1].strip() if len(parts) == 2 else ""
+        if city_state_zip:
+            run_input["name"] = [f"{owner_name}; {city_state_zip}"]
 
     try:
         run = _client.actor("one-api/skip-trace").call(run_input=run_input)
         items = list(_client.dataset(run["defaultDatasetId"]).iterate_items())
-    except Exception:
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("skip_trace.apify_error %s", str(exc)[:200])
         return {"owner_name": owner_name, "phones": [], "emails": [], "confidence": 0.0}
 
     if not items:
         return {"owner_name": owner_name, "phones": [], "emails": [], "confidence": 0.0}
 
+    # Results are flat dicts with keys Phone-1..Phone-5, Email-1..Email-5
     result = items[0]
 
-    raw_phones = result.get("phones", [])
-    phones = [p["number"] if isinstance(p, dict) else p for p in raw_phones]
+    phones = [
+        str(result[f"Phone-{i}"]).strip()
+        for i in range(1, 6)
+        if result.get(f"Phone-{i}", "").strip()
+    ]
+    emails = [
+        str(result[f"Email-{i}"]).strip()
+        for i in range(1, 6)
+        if result.get(f"Email-{i}", "").strip()
+    ]
 
-    raw_emails = result.get("emails", [])
-    emails = [e["address"] if isinstance(e, dict) else e for e in raw_emails]
+    first = result.get("First Name", "")
+    last = result.get("Last Name", "")
+    found_name = f"{first} {last}".strip() or owner_name
 
-    found_name = (
-        result.get("fullName")
-        or result.get("name")
-        or f"{result.get('firstName', '')} {result.get('lastName', '')}".strip()
-        or owner_name
-    )
+    mailing = ", ".join(filter(None, [
+        result.get("Street Address", ""),
+        result.get("Address Locality", ""),
+        result.get("Address Region", ""),
+        result.get("Postal Code", ""),
+    ]))
 
     return {
         "owner_name": found_name,
         "phones": phones,
         "emails": emails,
-        "mailing_address": result.get("address", ""),
-        "confidence": result.get("score", result.get("confidence", 0.5)),
+        "mailing_address": mailing,
+        "confidence": 0.8 if phones else 0.3,
     }
+
+
+def _parse_skip_trace_result(result: dict, fallback_owner: str = "") -> dict:
+    """Parse a single skip-trace result row into our contact schema."""
+    phones = [
+        str(result[f"Phone-{i}"]).strip()
+        for i in range(1, 6)
+        if result.get(f"Phone-{i}", "").strip()
+    ]
+    emails = [
+        str(result[f"Email-{i}"]).strip()
+        for i in range(1, 6)
+        if result.get(f"Email-{i}", "").strip()
+    ]
+    first = result.get("First Name", "")
+    last = result.get("Last Name", "")
+    found_name = f"{first} {last}".strip() or fallback_owner
+    mailing = ", ".join(filter(None, [
+        result.get("Street Address", ""),
+        result.get("Address Locality", ""),
+        result.get("Address Region", ""),
+        result.get("Postal Code", ""),
+    ]))
+    return {
+        "owner_name": found_name,
+        "phones": phones,
+        "emails": emails,
+        "mailing_address": mailing,
+        "confidence": 0.8 if phones else 0.3,
+    }
+
+
+def batch_enrich_contacts(
+    records: list[dict],
+    default_city: str = "",
+    default_state: str = "",
+) -> dict[str, dict | None]:
+    """
+    Batch skip-trace all records in a single Apify actor call.
+
+    The actor accepts arrays of address and name queries, tagging each result
+    with "Input Given" so we can map results back to the original address.
+
+    Returns: {address_string: contact_dict | None}
+      contact_dict has phones, emails, owner_name, mailing_address, confidence.
+      None means no results found.
+    """
+    street_entries: list[str] = []
+    name_entries: list[str] = []
+    key_to_rec: dict[str, dict] = {}
+
+    for rec in records:
+        addr = rec.get("address", "").strip()
+        if not addr:
+            continue
+        owner = rec.get("owner_name", "")
+        rec_city = rec.get("city") or default_city
+        rec_state = rec.get("state") or default_state
+        zip_ = rec.get("zip", "")
+        city_state_zip = f"{rec_city}, {rec_state}" + (f" {zip_}" if zip_ else "")
+
+        street_key = f"{addr}; {city_state_zip}"
+        street_entries.append(street_key)
+        key_to_rec[street_key] = rec
+
+        if owner:
+            name_key = f"{owner}; {city_state_zip}"
+            name_entries.append(name_key)
+            key_to_rec[name_key] = rec
+
+    if not street_entries:
+        return {}
+
+    run_input: dict = {
+        "street_citystatezip": street_entries,
+        "max_results_per_query": 3,
+        "max_results": 3,
+    }
+    if name_entries:
+        run_input["name"] = name_entries
+
+    import logging
+    log = logging.getLogger(__name__)
+    try:
+        run = _client.actor("one-api/skip-trace").call(run_input=run_input)
+        items = list(_client.dataset(run["defaultDatasetId"]).iterate_items())
+    except Exception as exc:
+        log.warning("skip_trace.batch_error %s", str(exc)[:200])
+        return {}
+
+    # Group best result per input key (first result with phones wins)
+    best_by_key: dict[str, dict] = {}
+    for item in items:
+        key = item.get("Input Given", "").strip()
+        if not key:
+            continue
+        existing = best_by_key.get(key)
+        phones_in_item = any(item.get(f"Phone-{i}", "").strip() for i in range(1, 6))
+        if existing is None or (phones_in_item and not any(existing.get(f"Phone-{j}", "").strip() for j in range(1, 6))):
+            best_by_key[key] = item
+
+    # Map back to original address strings
+    contacts: dict[str, dict | None] = {}
+    for rec in records:
+        addr = rec.get("address", "").strip()
+        if not addr:
+            continue
+        owner = rec.get("owner_name", "")
+        rec_city = rec.get("city") or default_city
+        rec_state = rec.get("state") or default_state
+        zip_ = rec.get("zip", "")
+        city_state_zip = f"{rec_city}, {rec_state}" + (f" {zip_}" if zip_ else "")
+
+        result = best_by_key.get(f"{addr}; {city_state_zip}")
+        if not result and owner:
+            result = best_by_key.get(f"{owner}; {city_state_zip}")
+
+        contacts[addr] = _parse_skip_trace_result(result, owner) if result else None
+
+    return contacts
 
 
 def get_comparable_sales(address: str, city: str, state: str, radius_miles: float = 1.0) -> list[dict]:

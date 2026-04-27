@@ -1,0 +1,61 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]: Quaco
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e11]
+          - text: Dashboard
+        - link "Leads" [ref=e16] [cursor=pointer]:
+          - /url: /leads
+          - img [ref=e17]
+          - text: Leads
+        - link "Run Pipeline" [ref=e18] [cursor=pointer]:
+          - /url: /pipeline
+          - img [ref=e19]
+          - text: Run Pipeline
+        - link "Settings" [ref=e21] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e22]
+          - text: Settings
+      - button "Sign out" [ref=e26]:
+        - img [ref=e27]
+        - text: Sign out
+    - main [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - heading "Dashboard" [level=1] [ref=e34]
+            - paragraph [ref=e35]: Lead pipeline overview
+          - button "Refresh" [ref=e36]:
+            - img [ref=e37]
+            - text: Refresh
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - paragraph [ref=e44]: Total Leads
+            - paragraph [ref=e45]: "0"
+            - paragraph [ref=e46]: from county records
+          - generic [ref=e47]:
+            - paragraph [ref=e48]: New
+            - paragraph [ref=e49]: "0"
+            - paragraph [ref=e50]: pending pipeline
+          - generic [ref=e51]:
+            - paragraph [ref=e52]: Enriched
+            - paragraph [ref=e53]: "0"
+            - paragraph [ref=e54]: owner contact + offer
+          - generic [ref=e55]:
+            - paragraph [ref=e56]: In Pipeline
+            - paragraph [ref=e57]: "0"
+            - paragraph [ref=e58]: enrichment → outreach
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - heading "Pipeline Activity" [level=2] [ref=e61]
+            - link "View all →" [ref=e62] [cursor=pointer]:
+              - /url: /leads
+          - generic [ref=e63]: Loading…
+  - button "Open Next.js Dev Tools" [ref=e69] [cursor=pointer]:
+    - img [ref=e70]
+  - alert [ref=e73]

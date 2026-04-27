@@ -17,6 +17,7 @@ class BuyBox(BaseModel):
     property_types: List[str] = ["single_family"]
     min_beds: int = 2
     max_beds: Optional[int] = None
+    min_baths: Optional[float] = None
     min_sqft: Optional[int] = None
     max_sqft: Optional[int] = None
 

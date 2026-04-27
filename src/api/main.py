@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import leads, pipeline, webhooks
+from src.api.routes import campaigns, leads, onboarding, pipeline, webhooks
 from src.core.config import settings
 from src.core.logging import configure_logging, get_logger
 
@@ -50,7 +50,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(campaigns.router)
     app.include_router(leads.router)
+    app.include_router(onboarding.router)
     app.include_router(pipeline.router)
     app.include_router(webhooks.router)
 

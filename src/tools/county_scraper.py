@@ -1,363 +1,444 @@
 from __future__ import annotations
 
 """
-County records scraper — Browserbase + Selenium + GPT-4o agent.
-No Playwright. Selenium is synchronous; the public API wraps it in asyncio.to_thread.
+County records scraper — ArcGIS REST API (primary) + Firecrawl AI (discovery).
+
+Strategy:
+  1. Look up cached ArcGIS endpoint for this county in the DB.
+  2. If no endpoint cached, use Firecrawl (1 AI call) to discover the county's
+     ArcGIS parcel feature service URL. Cache it forever.
+  3. Query the ArcGIS REST API directly for up to 2000 residential parcels.
+     This is free, instant, and returns real owner names + assessed values.
+  4. If ArcGIS is unavailable for this county, fall back to Firecrawl AI extract.
 """
 
 import asyncio
 import json
-import time
 import urllib.parse
-from typing import Any, Dict, List
-
-from browserbase import Browserbase
-from openai import OpenAI
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.remote.remote_connection import RemoteConnection
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+import urllib.request
+from typing import Any, Dict, List, Optional
 
 from src.core.config import settings
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-_SYSTEM = """You are a web automation agent that extracts residential property records from county assessor / appraisal district websites.
+_PROPERTY_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "properties": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "address":          {"type": "string"},
+                    "city":             {"type": "string"},
+                    "state":            {"type": "string"},
+                    "zip":              {"type": "string"},
+                    "apn":              {"type": "string"},
+                    "owner_name":       {"type": "string"},
+                    "assessed_value":   {"type": "integer"},
+                    "improvement_value":{"type": "integer"},
+                    "bedrooms":         {"type": "integer"},
+                    "bathrooms":        {"type": "number"},
+                    "sqft":             {"type": "integer"},
+                    "year_built":       {"type": "integer"},
+                    "property_type":    {"type": "string"},
+                },
+                "required": ["address"],
+            },
+        }
+    },
+    "required": ["properties"],
+}
 
-## Your job
-Find the county assessor website, search for properties, and extract structured records.
 
-## Steps
-1. Navigate to the county assessor website. If you know the URL, go directly. Otherwise search DuckDuckGo.
-2. Accept any disclaimer or popup immediately.
-3. Call get_inputs to discover all form fields, dropdowns, and buttons on the page.
-4. IMPORTANT — set any Account Type / Property Type / Category filter to "RESIDENTIAL" before searching. Use the selector from get_inputs output. If there is a radio button or dropdown for property type, select RESIDENTIAL first.
-5. Search with a broad street name (try "Main", then "Oak", then "Park") — leave all other fields empty except the residential filter.
-6. Submit the form. After submission, call get_table_rows to read all result rows as structured JSON.
-7. From the rows, collect only RESIDENTIAL properties with a real assessed/total value (skip rows where value < $10,000 or type is COMMERCIAL / BPP / LAND).
-8. For each property record: capture address, city, state, APN (from detail link href), owner name, assessed value.
-9. Paginate to page 2 if available and you still have fewer than 20 residential results.
-10. If one street name returns nothing residential, try "Oak", then "Park".
-11. Call save_leads with all collected records. Aim for 20–50.
+# ---------------------------------------------------------------------------
+# DB cache helpers — store both the assessor URL and ArcGIS endpoint
+# ---------------------------------------------------------------------------
 
-## Rules
-- ALWAYS call get_inputs before using any fill or click. Never guess selectors.
-- If a page looks broken or empty, call screenshot to see what's there.
-- Only collect RESIDENTIAL / SINGLE-FAMILY properties. Skip all COMMERCIAL, BPP, and LAND rows.
-- Don't invent data. If a field isn't on the page, omit it.
-- The APN/account number is usually embedded in the href of the property address link.
+def _get_county_cache(county: str, state: str) -> Optional[Dict[str, Any]]:
+    try:
+        from src.core.database import get_db
+        db = get_db()
+        res = (
+            db.table("county_configs")
+            .select("assessor_url,notes")
+            .eq("county", county)
+            .eq("state", state)
+            .maybe_single()
+            .execute()
+        )
+        if not res.data:
+            return None
+        data = res.data
+        try:
+            notes_parsed = json.loads(data.get("notes", ""))
+            if isinstance(notes_parsed, dict):
+                return {
+                    "assessor_url": data.get("assessor_url", ""),
+                    **notes_parsed,
+                }
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return {"assessor_url": data.get("assessor_url", ""), "notes": data.get("notes", "")}
+    except Exception as exc:
+        logger.debug("county_cache.miss", county=county, state=state, error=str(exc))
+        return None
 
-## Known county assessor URLs (go directly — skip DuckDuckGo)
-- Dallas County TX    → https://www.dallascad.org/SearchAddr.aspx
-- Tarrant County TX   → https://www.tad.org/
-- Harris County TX    → https://hcad.org/property-search/real-property/
-- Travis County TX    → https://travis.prodigycad.com/
-- Fulton County GA    → https://qpublic.schneidercorp.com/Application.aspx?App=FultonCountyGA&PageType=Search
-- Cook County IL      → https://www.cookcountyassessor.com/
-- Maricopa County AZ  → https://mcassessor.maricopa.gov/
-- LA County CA        → https://assessor.lacounty.gov/
-- Miami-Dade FL       → https://www.miamidade.gov/Apps/PA/propertysearch/
 
-For any county not listed above: search DuckDuckGo to find it."""
+def _save_county_cache(
+    county: str,
+    state: str,
+    assessor_url: str = "",
+    arcgis_url: str = "",
+    notes: str = "",
+) -> None:
+    try:
+        from datetime import datetime, timezone
+        from src.core.database import get_db
+        db = get_db()
+        db.table("county_configs").upsert(
+            {
+                "county": county,
+                "state": state,
+                "assessor_url": assessor_url or "",
+                "notes": json.dumps({"arcgis_url": arcgis_url, "description": notes}),
+                "last_success_at": datetime.now(timezone.utc).isoformat(),
+            },
+            on_conflict="county,state",
+        ).execute()
+        logger.info("county_cache.saved", county=county, state=state, arcgis_url=arcgis_url[:60] if arcgis_url else "")
+    except Exception as exc:
+        logger.warning("county_cache.save_error", county=county, state=state, error=str(exc))
 
-_TOOLS: List[Dict[str, Any]] = [
-    {"type": "function", "function": {
-        "name": "navigate", "description": "Go to a URL.",
-        "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
-    }},
-    {"type": "function", "function": {
-        "name": "click", "description": "Click an element by CSS selector or visible text.",
-        "parameters": {"type": "object", "properties": {
-            "selector": {"type": "string"}, "by_text": {"type": "boolean"},
-        }, "required": ["selector"]},
-    }},
-    {"type": "function", "function": {
-        "name": "fill", "description": "Type text into a form field. Uses JS fallback if direct fill fails.",
-        "parameters": {"type": "object", "properties": {
-            "selector": {"type": "string"}, "text": {"type": "string"}, "submit": {"type": "boolean"},
-        }, "required": ["selector", "text"]},
-    }},
-    {"type": "function", "function": {
-        "name": "get_page", "description": "Get current URL and first 8000 chars of visible page text.",
-        "parameters": {"type": "object", "properties": {}},
-    }},
-    {"type": "function", "function": {
-        "name": "get_inputs", "description": "List all visible input fields, buttons, and links with their CSS selectors. Call this before fill/click.",
-        "parameters": {"type": "object", "properties": {}},
-    }},
-    {"type": "function", "function": {
-        "name": "get_table_rows",
-        "description": (
-            "Return all visible table rows as a JSON array of arrays. Each inner array is one row's cell texts. "
-            "Use this after a search to read result rows without parsing HTML."
-        ),
-        "parameters": {"type": "object", "properties": {}},
-    }},
-    {"type": "function", "function": {
-        "name": "screenshot", "description": "Capture a screenshot. Use when selectors fail or the page is unclear.",
-        "parameters": {"type": "object", "properties": {}},
-    }},
-    {"type": "function", "function": {
-        "name": "save_leads", "description": "Save all extracted property records.",
-        "parameters": {"type": "object", "properties": {
-            "leads": {"type": "array", "items": {"type": "object", "properties": {
-                "address": {"type": "string"}, "city": {"type": "string"}, "state": {"type": "string"},
-                "zip": {"type": "string"}, "apn": {"type": "string"}, "owner_name": {"type": "string"},
-                "owner_mailing_address": {"type": "string"}, "sqft": {"type": "integer"},
-                "assessed_value": {"type": "integer"}, "improvement_value": {"type": "integer"},
-                "bedrooms": {"type": "integer"}, "bathrooms": {"type": "number"},
-                "year_built": {"type": "integer"}, "property_type": {"type": "string"},
-            }, "required": ["address"]}},
-        }, "required": ["leads"]},
-    }},
+
+# ---------------------------------------------------------------------------
+# ArcGIS REST API — primary data source (free, high volume)
+# ---------------------------------------------------------------------------
+
+def _first_attr(attrs: Dict, *keys: str) -> Any:
+    """Return the first non-null value from attrs matching any of the given keys (case-insensitive)."""
+    lower_attrs = {k.lower(): v for k, v in attrs.items()}
+    for key in keys:
+        v = lower_attrs.get(key.lower())
+        if v not in (None, "", 0):
+            return v
+    return None
+
+
+def _normalize_arcgis_feature(attrs: Dict, city: str, state: str) -> Optional[Dict[str, Any]]:
+    """Map ArcGIS parcel attributes to our property schema. Handles varied field names across counties."""
+    # Address — try composite field first, then build from parts
+    address = _first_attr(
+        attrs,
+        "Address", "SITEADDRESS", "SITE_ADDRESS", "PropertyAddress",
+        "PROP_ADDRESS", "FULLADDRESS", "SITUS_ADDRESS", "ADDR",
+    )
+    if not address:
+        parts = [
+            str(_first_attr(attrs, "AddrNumber", "STREETNO", "HOUSE_NUM", "HOUSENUM") or ""),
+            str(_first_attr(attrs, "AddrPreDir", "PREDIR", "PREDIRECTION") or ""),
+            str(_first_attr(attrs, "AddrStreet", "STREETNAME", "STREET_NAME", "STRNAME") or ""),
+            str(_first_attr(attrs, "AddrSuffix", "SUFFIX", "STREETTYPE", "STRTYPE") or ""),
+        ]
+        address = " ".join(p for p in parts if p).strip()
+
+    if not address:
+        return None
+
+    owner = _first_attr(
+        attrs,
+        "Owner", "OWNER", "OWNER_NAME", "OwnName", "OWNERNAME",
+        "TaxpayerName", "TAXPAYER", "GRANTOR",
+    )
+
+    assessed = _first_attr(
+        attrs,
+        "TotAssess", "TOTALASSESSEDVALUE", "ASSESSEDVALUE", "ASSDVALUE",
+        "TotAppr", "TOTALAPPRAISEDVALUE", "APPRAISEDVALUE", "AV", "TAXVALUE",
+    )
+
+    improvement = _first_attr(
+        attrs,
+        "ImprAssess", "IMPROVEMENTASSESSEDVALUE", "IMPRVALUE",
+        "ImprAppr", "BUILDINGVALUE", "IMPROVVALUE",
+    )
+
+    zip_raw = _first_attr(attrs, "ZipCode", "ZIP", "ZIPCODE", "POSTAL_CODE", "SITUS_ZIP")
+    zip_code = str(zip_raw or "").split(".")[0].strip()[:5] or None
+
+    apn = _first_attr(
+        attrs,
+        "ParcelID", "PARCELID", "APN", "PIN", "PARCEL_ID",
+        "PARID", "PARCELNUMBER", "PARCEL_NUMBER",
+    )
+
+    bedrooms = _first_attr(attrs, "Bedrooms", "BEDROOMS", "BEDS", "BED")
+    bathrooms = _first_attr(attrs, "Bathrooms", "BATHROOMS", "BATHS", "BATH")
+    sqft = _first_attr(
+        attrs,
+        "SqFt", "SQFT", "LIVAREA", "LIVINGAREA", "BLDGAREA",
+        "HEATED_AREA", "GROSSAREA", "TOTALSQFT",
+    )
+    year_built = _first_attr(attrs, "YearBuilt", "YEARBUILT", "YEAR_BUILT", "YR_BUILT")
+
+    return {
+        "address": str(address).strip(),
+        "city": city,
+        "state": state,
+        "zip": zip_code,
+        "apn": str(apn).strip() if apn else None,
+        "owner_name": str(owner).strip() if owner else None,
+        "assessed_value": int(float(str(assessed))) if assessed else None,
+        "improvement_value": int(float(str(improvement))) if improvement else None,
+        "bedrooms": int(bedrooms) if bedrooms else None,
+        "bathrooms": float(bathrooms) if bathrooms else None,
+        "sqft": int(float(str(sqft))) if sqft else None,
+        "year_built": int(year_built) if year_built else None,
+        "property_type": "residential",  # normalised downstream by buy-box filter
+    }
+
+
+# ---------------------------------------------------------------------------
+# Firecrawl — used ONLY to discover ArcGIS endpoint (once per county, cached)
+# ---------------------------------------------------------------------------
+
+async def _discover_arcgis_endpoint(county: str, state: str) -> Optional[str]:
+    """
+    Use Firecrawl AI to find the county's ArcGIS parcel feature service URL.
+    This is a one-time operation per county — the result is cached in the DB.
+    """
+    if not settings.firecrawl_api_key:
+        return None
+
+    try:
+        from firecrawl import FirecrawlApp
+        app = FirecrawlApp(api_key=settings.firecrawl_api_key)
+
+        result = await asyncio.to_thread(
+            app.extract,
+            prompt=(
+                f"Find the ArcGIS REST feature service URL for {county} County, {state} "
+                f"property parcels or tax assessor parcel data. "
+                f"Look for ArcGIS Online hosted services, county GIS portals, or open data portals. "
+                f"Return the full URL ending in /FeatureServer/0, /FeatureServer/1, or /MapServer/0."
+            ),
+            schema={
+                "type": "object",
+                "properties": {
+                    "gis_api_url": {
+                        "type": "string",
+                        "description": "Full ArcGIS REST endpoint URL ending in /FeatureServer/0 or similar",
+                    },
+                },
+            },
+            enable_web_search=True,
+            allow_external_links=True,
+            timeout=90000,
+        )
+
+        if result and hasattr(result, "data") and result.data:
+            url = result.data.get("gis_api_url", "")
+            if url and "arcgis" in url.lower() and ("featureserver" in url.lower() or "mapserver" in url.lower()):
+                logger.info("arcgis.discovered", county=county, state=state, url=url[:80])
+                return url
+
+    except Exception as exc:
+        logger.warning("arcgis.discover_error", county=county, state=state, error=str(exc)[:200])
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Firecrawl full extraction — fallback for counties without ArcGIS
+# ---------------------------------------------------------------------------
+
+async def _firecrawl_county_extract(
+    county: str,
+    state: str,
+    city: str,
+    assessor_url: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Fallback: use Firecrawl AI to extract records from the county assessor website.
+    Used when no ArcGIS endpoint is found for the county.
+    """
+    if not settings.firecrawl_api_key:
+        return []
+
+    try:
+        from firecrawl import FirecrawlApp
+        app = FirecrawlApp(api_key=settings.firecrawl_api_key)
+
+        prompt = (
+            f"Extract as many residential property records as possible from the "
+            f"{county} County, {state} assessor or auditor website.\n\n"
+            f"Find the county's property search tool and retrieve residential properties in {city}, {state}. "
+            f"Do NOT limit to specific street names — use whatever search returns the most records. "
+            f"If results are paginated, follow every Next/Page 2 link and extract those records too.\n\n"
+            f"For each property extract: address, city, state, zip, owner_name, apn, "
+            f"assessed_value, improvement_value, bedrooms, bathrooms, sqft, year_built, property_type.\n\n"
+            f"Goal: return 50+ unique residential properties."
+        )
+
+        urls = [assessor_url] if assessor_url else None
+        logger.info("firecrawl_county.start", county=county, state=state, url=assessor_url)
+
+        result = await asyncio.to_thread(
+            app.extract,
+            urls=urls,
+            prompt=prompt,
+            schema=_PROPERTY_SCHEMA,
+            enable_web_search=True,
+            allow_external_links=True,
+            timeout=120000,
+        )
+
+        if result and hasattr(result, "data") and result.data:
+            props = result.data.get("properties", [])
+            props = [p for p in props if p.get("address", "").strip()]
+            logger.info("firecrawl_county.done", county=county, found=len(props))
+            return props
+
+    except Exception as exc:
+        logger.warning("firecrawl_county.error", county=county, error=str(exc)[:300])
+
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+async def scrape_county_records(county: str, state: str, city: str) -> List[Dict[str, Any]]:
+    """
+    Extract residential property records for a given county.
+
+    Primary path (fast, free, 2000 records):
+      - Query the county's ArcGIS parcel REST API directly.
+
+    On first run per county:
+      - Use Firecrawl to discover the ArcGIS endpoint, then cache it.
+
+    Fallback (if no ArcGIS found):
+      - Use Firecrawl AI to extract from the county assessor website.
+    """
+    cache = _get_county_cache(county, state)
+    assessor_url = (cache or {}).get("assessor_url", "")
+    arcgis_url   = (cache or {}).get("arcgis_url", "")
+
+    logger.info("county_scraper.start", county=county, state=state, has_arcgis=bool(arcgis_url))
+
+    # ── Try ArcGIS direct query first ─────────────────────────────────────
+    if arcgis_url:
+        records = await asyncio.to_thread(_query_arcgis_sync, arcgis_url, city, state)
+        if records:
+            logger.info("county_scraper.done", county=county, found=len(records), source="arcgis")
+            return _dedupe(records)
+
+    # ── Discover ArcGIS endpoint via Firecrawl (one-time per county) ──────
+    logger.info("arcgis.discovering", county=county, state=state)
+    arcgis_url = await _discover_arcgis_endpoint(county, state) or ""
+
+    if arcgis_url:
+        _save_county_cache(county, state, assessor_url=assessor_url, arcgis_url=arcgis_url)
+        records = await asyncio.to_thread(_query_arcgis_sync, arcgis_url, city, state)
+        if records:
+            logger.info("county_scraper.done", county=county, found=len(records), source="arcgis")
+            return _dedupe(records)
+
+    # ── Fallback: Firecrawl AI extraction from assessor website ───────────
+    logger.info("county_scraper.firecrawl_fallback", county=county)
+    records = await _firecrawl_county_extract(county, state, city, assessor_url or None)
+    if records:
+        _save_county_cache(county, state, assessor_url=assessor_url, arcgis_url="")
+
+    logger.info("county_scraper.done", county=county, found=len(records), source="firecrawl_fallback")
+    return _dedupe(records)
+
+
+_VALUE_FIELD_CANDIDATES = [
+    "TotAppr", "TotAssess", "TOTALASSESSEDVALUE", "ASSESSEDVALUE",
+    "AV", "TAXVALUE", "APPRAISED", "APPRAISEDVALUE", "AssessedValue",
+]
+_OWNER_FIELD_CANDIDATES = [
+    "Owner", "OWNER", "OWNER_NAME", "OwnName", "OWNERNAME",
+    "TaxpayerName", "TAXPAYER", "GRANTOR",
 ]
 
 
-class _BBRemoteConn(RemoteConnection):
-    """Browserbase Selenium connection with auth header injection."""
-
-    def __init__(self, remote_addr: str, api_key: str, session_id: str) -> None:
-        super().__init__(remote_addr)
-        self._bb_api_key = api_key
-        self._bb_session_id = session_id
-
-    def get_remote_connection_headers(self, parsed_url: Any, keep_alive: bool = False) -> Dict[str, str]:
-        headers = super().get_remote_connection_headers(parsed_url, keep_alive)
-        headers.update({"x-bb-api-key": self._bb_api_key, "session-id": self._bb_session_id})
-        return headers
-
-
-def _get_body_text(driver: webdriver.Remote) -> str:
+def _get_layer_fields(gis_url: str) -> set:
+    """Return lowercase field names from the ArcGIS layer metadata."""
     try:
-        return driver.find_element(By.TAG_NAME, "body").text[:8000]
+        req = urllib.request.Request(f"{gis_url}?f=json", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+        return {f["name"].lower() for f in data.get("fields", [])}
     except Exception:
-        return ""
+        return set()
 
 
-def _page_ctx(driver: webdriver.Remote) -> str:
-    return f"URL: {driver.current_url}\n\nContent:\n{_get_body_text(driver)}"
+def _build_arcgis_where(field_names: set) -> str:
+    """Build a WHERE clause using only fields confirmed to exist in this layer."""
+    value_field = next(
+        (f for f in _VALUE_FIELD_CANDIDATES if f.lower() in field_names),
+        None,
+    )
+    owner_field = next(
+        (f for f in _OWNER_FIELD_CANDIDATES if f.lower() in field_names),
+        None,
+    )
+    conditions = []
+    if value_field:
+        conditions.append(f"{value_field} > 50000")
+    if owner_field:
+        conditions.append(f"{owner_field} IS NOT NULL")
+    return " AND ".join(conditions) if conditions else "1=1"
 
 
-def _scrape_sync(county: str, state: str, city: str) -> List[Dict[str, Any]]:
-    """Run the GPT-4o + Selenium browser agent synchronously."""
-    api_key = settings.browserbase_api_key
-    project_id = settings.browserbase_project_id
-    oai_key = settings.openai_api_key
+def _query_arcgis_sync(gis_url: str, city: str, state: str) -> List[Dict[str, Any]]:
+    """Synchronous ArcGIS query (called via asyncio.to_thread)."""
+    field_names = _get_layer_fields(gis_url)
+    where = _build_arcgis_where(field_names)
+    logger.info("arcgis.where_clause", gis_url=gis_url[:60], where=where)
 
-    bb = Browserbase(api_key=api_key)
-    session = bb.sessions.create(project_id=project_id, api_timeout=600)
-    logger.info("county_scraper.session", session_id=session.id)
-
-    conn = _BBRemoteConn(session.selenium_remote_url, api_key, session.id)
-    options = webdriver.ChromeOptions()
-    driver = webdriver.Remote(command_executor=conn, options=options)
-
-    client = OpenAI(api_key=oai_key)
-    extracted: List[Dict[str, Any]] = []
-
-    # ── Tool implementations ──────────────────────────────────────────────────
-
-    def _nav(url: str) -> str:
-        driver.get(url)
-        time.sleep(3)
-        return _page_ctx(driver)
-
-    def _click(selector: str, by_text: bool = False) -> str:
-        try:
-            if by_text:
-                # Use json.dumps to safely encode the text for the XPath string
-                safe_text = selector.replace("'", "\\'")
-                el = driver.find_element(By.XPATH, f"//*[contains(normalize-space(text()), '{safe_text}')]")
-                el.click()
-            else:
-                el = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                el.click()
-            time.sleep(3)
-        except Exception as exc:
-            logger.debug("county_scraper.click.miss", selector=selector, err=str(exc))
-        return _page_ctx(driver)
-
-    def _fill(selector: str, text: str, submit: bool = False) -> str:
-        filled = False
-        try:
-            el = WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-            el.clear()
-            el.send_keys(text)
-            filled = True
-        except Exception:
-            pass
-
-        if not filled:
-            # Use json.dumps to safely encode selector and text — prevents JS syntax errors
-            js_sel = json.dumps(selector)
-            js_val = json.dumps(text)
-            driver.execute_script(
-                f"""var el=document.querySelector({js_sel});
-                if(el){{el.value={js_val};
-                el.dispatchEvent(new Event('input',{{bubbles:true}}));
-                el.dispatchEvent(new Event('change',{{bubbles:true}}));}}"""
-            )
-
-        if submit:
-            try:
-                driver.find_element(By.CSS_SELECTOR, selector).send_keys(Keys.RETURN)
-            except Exception:
-                try:
-                    driver.execute_script("document.querySelector('form').submit()")
-                except Exception:
-                    pass
-            time.sleep(4)
-
-        return _page_ctx(driver)
-
-    def _get_inputs() -> str:
-        try:
-            elements = driver.execute_script("""
-                var r=[];
-                function labelFor(el) {
-                    if (el.id) {
-                        var lbl = document.querySelector('label[for="' + el.id + '"]');
-                        if (lbl) return (lbl.textContent||'').trim().slice(0,40);
-                    }
-                    var parent = el.closest('label');
-                    if (parent) return (parent.textContent||'').trim().replace(/\\s+/g,' ').slice(0,40);
-                    return '';
-                }
-                function addEl(el) {
-                    var rect=el.getBoundingClientRect();
-                    if(rect.width>0&&rect.height>0){
-                        var id=el.id?'#'+el.id:null;
-                        var nm=el.name?'[name="'+el.name+'"]':null;
-                        var lbl=labelFor(el);
-                        r.push({tag:el.tagName.toLowerCase(),type:el.type||null,id:el.id||null,
-                            name:el.name||null,placeholder:el.placeholder||null,label:lbl||null,
-                            checked:(el.type==='checkbox'||el.type==='radio')?el.checked:undefined,
-                            value:(el.value||el.textContent||'').trim().slice(0,60),
-                            selector:id||nm||el.tagName.toLowerCase()});
-                    }
-                }
-                document.querySelectorAll('input,select,textarea,button').forEach(addEl);
-                document.querySelectorAll('a[href]').forEach(addEl);
-                return r.slice(0,50);
-            """)
-            return json.dumps(elements, indent=2)
-        except Exception as exc:
-            return json.dumps({"error": str(exc)})
-
-    def _get_table_rows() -> str:
-        """Extract all visible table rows as JSON array of arrays."""
-        try:
-            rows = driver.execute_script("""
-                var result = [];
-                document.querySelectorAll('table tr').forEach(function(row) {
-                    var cells = [];
-                    row.querySelectorAll('td, th').forEach(function(cell) {
-                        var a = cell.querySelector('a');
-                        var href = a ? a.href : '';
-                        var text = (cell.innerText || cell.textContent || '').trim().replace(/\\s+/g,' ');
-                        cells.push({text: text, href: href});
-                    });
-                    if (cells.length > 0) result.push(cells);
-                });
-                return result.slice(0, 200);
-            """)
-            return json.dumps(rows[:200], ensure_ascii=False)
-        except Exception as exc:
-            return json.dumps({"error": str(exc)})
-
-    # ── Agent loop ────────────────────────────────────────────────────────────
-
-    ddg = urllib.parse.quote(f"{county} County {state} property search assessor appraisal district")
-    messages: List[Dict[str, Any]] = [
-        {"role": "system", "content": _SYSTEM},
-        {"role": "user", "content": (
-            f"Extract residential property records for {county} County, {state} (city: {city}).\n"
-            f"Find the county assessor website, search by street name, and collect all residential properties.\n"
-            f"Start here if the county website is unknown: https://duckduckgo.com/?q={ddg}\n"
-            f"Collect at least 20 records. Call save_leads when done."
-        )},
-    ]
-
-    done = False
+    params = urllib.parse.urlencode({
+        "where": where,
+        "outFields": "*",
+        "f": "json",
+        "resultRecordCount": 2000,
+    })
     try:
-        for _ in range(22):
-            if done:
-                break
+        url = f"{gis_url}/query?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
 
-            response = client.chat.completions.create(
-                model=settings.openai_model,
-                tools=_TOOLS,  # type: ignore[arg-type]
-                messages=messages,  # type: ignore[arg-type]
-            )
-            msg = response.choices[0].message
+        if "error" in data:
+            logger.warning("arcgis.api_error", gis_url=gis_url[:60], error=str(data["error"])[:200])
+            return []
 
-            if response.choices[0].finish_reason != "tool_calls" or not msg.tool_calls:
-                break
+        features = data.get("features", [])
+        records = []
+        for f in features:
+            rec = _normalize_arcgis_feature(f.get("attributes", {}), city, state)
+            if rec and rec.get("address") and rec.get("owner_name"):
+                records.append(rec)
 
-            messages.append({
-                "role": "assistant",
-                "content": msg.content,
-                "tool_calls": [
-                    {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                    for tc in msg.tool_calls
-                ],
-            })
-
-            for tc in msg.tool_calls:
-                name = tc.function.name
-                try:
-                    inp = json.loads(tc.function.arguments)
-                except Exception:
-                    inp = {}
-
-                if name == "navigate":
-                    result = _nav(inp.get("url", ""))
-                elif name == "click":
-                    result = _click(inp.get("selector", ""), inp.get("by_text", False))
-                elif name == "fill":
-                    result = _fill(inp.get("selector", ""), inp.get("text", ""), inp.get("submit", False))
-                elif name == "get_page":
-                    result = _page_ctx(driver)
-                elif name == "get_inputs":
-                    result = _get_inputs()
-                elif name == "get_table_rows":
-                    result = _get_table_rows()
-                elif name == "screenshot":
-                    b64 = driver.get_screenshot_as_base64()
-                    messages.append({"role": "tool", "tool_call_id": tc.id, "content": "screenshot captured — see image below"})
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}},
-                            {"type": "text", "text": "This is the current page. Identify the correct form fields and continue extracting records."},
-                        ],
-                    })
-                    continue
-                elif name == "save_leads":
-                    extracted = inp.get("leads", [])
-                    result = json.dumps({"saved": len(extracted)})
-                    done = True
-                else:
-                    result = json.dumps({"error": f"unknown tool: {name}"})
-
-                messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
-    finally:
-        try:
-            driver.quit()
-        except Exception:
-            pass
-
-    logger.info("county_scraper.done", county=county, state=state, found=len(extracted))
-    return extracted
-
-
-async def scrape_county_records(county: str, state: str, city: str) -> List[Dict[str, Any]]:
-    """Browserbase + Selenium + GPT-4o county records scraper (async wrapper)."""
-    try:
-        return await asyncio.to_thread(_scrape_sync, county, state, city)
+        logger.info("arcgis.query_done", gis_url=gis_url[:60], records=len(records))
+        return records
     except Exception as exc:
-        logger.error("county_scraper.error", county=county, state=state, error=str(exc))
+        logger.warning("arcgis.query_error", gis_url=gis_url[:60], error=str(exc)[:200])
         return []
+
+
+def _dedupe(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen: set = set()
+    out: List[Dict[str, Any]] = []
+    for rec in records:
+        key = rec.get("address", "").strip().upper()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(rec)
+    return out
