@@ -27,15 +27,15 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
 
     # Apify
-    apify_token: str
+    apify_token: str = ""
 
     # Telenyx
-    telenyx_api_key: str
-    telenyx_from_number: str
+    telenyx_api_key: str = ""
+    telenyx_from_number: str = ""
     telenyx_webhook_secret: str = ""
 
     # Lumin
-    lumin_api_key: str
+    lumin_api_key: str = ""
     lumin_base_url: str = "https://api.luminpdf.com/v1"
 
     # Redis (for ARQ job queue)
