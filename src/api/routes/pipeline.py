@@ -30,79 +30,6 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = get_logger(__name__)
 
 
-async def _dispatch(
-    request: Request,
-    bg: BackgroundTasks,
-    task_name: str,
-    sync_fn,
-    **kwargs,
-) -> str:
-    """Use Redis queue when available, else run as a background task."""
-    if request.app.state.redis:
-        await request.app.state.redis.enqueue_job(task_name, **kwargs)
-        return "queued"
-    else:
-        bg.add_task(sync_fn, **kwargs)
-        return "running"
-
-
-def _run_ingestion_sync(buy_box_data: Dict, investor_data: Dict) -> None:
-    import asyncio
-    from src.tools.county_scraper import scrape_county_records
-    from src.services import pipeline as pipeline_service
-    repos = Repositories(get_db())
-    buy_box = BuyBox(**buy_box_data)
-    investor = Investor(**investor_data)
-
-    try:
-        county_raw = asyncio.run(scrape_county_records(buy_box.county, buy_box.state, buy_box.city))
-    except Exception:
-        county_raw = []
-
-    for rec in county_raw:
-        address = rec.get("address", "").strip()
-        if not address:
-            continue
-
-        assessed = rec.get("assessed_value")
-        if assessed:
-            try:
-                assessed_int = int(float(str(assessed)))
-                if buy_box.max_price and assessed_int > buy_box.max_price:
-                    continue
-                if buy_box.min_price and assessed_int < buy_box.min_price:
-                    continue
-            except (ValueError, TypeError):
-                pass
-
-        beds = rec.get("bedrooms")
-        if beds and buy_box.min_beds:
-            try:
-                if int(beds) < buy_box.min_beds:
-                    continue
-            except (ValueError, TypeError):
-                pass
-
-        prop_type = (rec.get("property_type") or "").lower().replace(" ", "_")
-        if buy_box.property_types and prop_type and prop_type not in buy_box.property_types:
-            continue
-
-        lead = Lead(
-            investor_id=investor.id,
-            source="county_records",
-            address=address,
-            city=rec.get("city") or buy_box.city,
-            state=rec.get("state") or buy_box.state,
-            price=assessed,
-            bedrooms=rec.get("bedrooms"),
-            sqft=rec.get("sqft"),
-            status=LeadStatus.NEW,
-        )
-        saved = repos.leads.upsert(lead)
-        # Run skip trace inline when no Redis
-        pipeline_service.run_skip_trace(saved.id, repos)
-
-
 @router.post("/run", status_code=202)
 async def run_pipeline(
     body: PipelineRunRequest,
@@ -110,7 +37,6 @@ async def run_pipeline(
     background_tasks: BackgroundTasks,
     investor_id: UUID = Depends(get_investor_id),
 ) -> dict:
-    investor = Investor(id=investor_id, name=body.investor_name, email=body.investor_email)
     buy_box = BuyBox(
         investor_id=investor_id,
         city=body.city,
@@ -122,19 +48,65 @@ async def run_pipeline(
         property_types=body.property_types,
     )
 
-    mode = await _dispatch(
-        request, background_tasks,
-        "task_ingest_leads",
-        _run_ingestion_sync,
-        buy_box_data=buy_box.model_dump(mode="json"),
-        investor_data=investor.model_dump(mode="json"),
-    )
+    job_id = None
+    if request.app.state.redis:
+        job = await request.app.state.redis.enqueue_job(
+            "task_run_acquisition",
+            buy_box_data=buy_box.model_dump(mode="json"),
+            investor_id=str(investor_id),
+            max_leads=10,
+        )
+        job_id = job.job_id if job else None
+        mode = "queued"
+        logger.info(
+            "pipeline.queued",
+            county=buy_box.county,
+            state=buy_box.state,
+            job_id=job_id,
+            investor_id=str(investor_id),
+        )
+    else:
+        # No Redis — run inline as background task
+        background_tasks.add_task(
+            _run_acquisition_sync,
+            buy_box_data=buy_box.model_dump(mode="json"),
+            investor_id=str(investor_id),
+        )
+        mode = "running"
+        logger.info("pipeline.background", county=buy_box.county, state=buy_box.state)
 
     return {
         "status": mode,
+        "job_id": job_id,
         "buy_box": f"{buy_box.city}, {buy_box.state}",
         "investor_id": str(investor_id),
     }
+
+
+@router.get("/status/{job_id}")
+async def pipeline_status(job_id: str, request: Request) -> dict:
+    """Poll ARQ job status. Returns status + result when complete."""
+    redis = request.app.state.redis
+    if not redis:
+        return {"status": "unknown", "result": None}
+
+    try:
+        from arq.jobs import Job, JobStatus
+        job = Job(job_id, redis=redis)
+        status = await job.status()
+        status_str = status.value if hasattr(status, "value") else str(status)
+
+        result = None
+        if status_str == "complete":
+            try:
+                result = await job.result(timeout=0.5)
+            except Exception:
+                pass
+
+        return {"status": status_str, "result": result}
+    except Exception as exc:
+        logger.warning("pipeline.status_error", job_id=job_id, error=str(exc))
+        return {"status": "unknown", "result": None}
 
 
 @router.post("/contract/{lead_id}", status_code=202)
@@ -148,11 +120,20 @@ async def trigger_contract(
 ) -> dict:
     investor = Investor(id=investor_id, name=investor_name, email=investor_email)
 
-    await _enqueue(
-        request,
-        "task_generate_contract",
-        lead_id=str(lead_id),
-        agreed_price=agreed_price,
-        investor_data=investor.model_dump(mode="json"),
-    )
+    if request.app.state.redis:
+        await request.app.state.redis.enqueue_job(
+            "task_generate_contract",
+            lead_id=str(lead_id),
+            agreed_price=agreed_price,
+            investor_data=investor.model_dump(mode="json"),
+        )
     return {"status": "queued", "lead_id": str(lead_id)}
+
+
+def _run_acquisition_sync(buy_box_data: Dict, investor_id: str) -> None:
+    import asyncio
+    from src.services.acquisition_pipeline import run_acquisition_pipeline
+    db = get_db()
+    buy_box = BuyBox(**buy_box_data)
+    inv_id = UUID(investor_id) if investor_id else None
+    asyncio.run(run_acquisition_pipeline(buy_box, inv_id, db, max_leads=10))

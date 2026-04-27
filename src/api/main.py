@@ -22,8 +22,8 @@ async def lifespan(app: FastAPI):
     if settings.redis_url and settings.redis_url.startswith("redis"):
         try:
             from arq import create_pool
-            from arq.connections import RedisSettings
-            app.state.redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+            from src.workers.settings import _redis_settings_from_url
+            app.state.redis = await create_pool(_redis_settings_from_url(settings.redis_url))
             logger.info("api.redis.connected", url=settings.redis_url)
         except Exception as e:
             logger.warning("api.redis.unavailable", error=str(e))
