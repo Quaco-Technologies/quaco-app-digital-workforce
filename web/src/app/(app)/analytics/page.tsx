@@ -152,7 +152,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="bg-zinc-100 rounded-md h-7 relative overflow-hidden">
                     <div
-                      className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-md transition-all"
+                      className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-md transition-all"
                       style={{ width: `${Math.max(widthPct, 0.5)}%` }}
                     />
                   </div>
@@ -167,8 +167,8 @@ export default function AnalyticsPage() {
           <h2 className="font-semibold text-zinc-900 mb-4">Last 8 Weeks</h2>
           <div className="space-y-3">
             <TrendRow label="Records" values={weekly.map((w) => w.scraped)} color="#a1a1aa" total={weekly.reduce((s, w) => s + w.scraped, 0)} />
-            <TrendRow label="Qualified" values={weekly.map((w) => w.qualified)} color="#6366f1" total={weekly.reduce((s, w) => s + w.qualified, 0)} />
-            <TrendRow label="Replied" values={weekly.map((w) => w.replied)} color="#a855f7" total={totalReplied} />
+            <TrendRow label="Qualified" values={weekly.map((w) => w.qualified)} color="#3b82f6" total={weekly.reduce((s, w) => s + w.qualified, 0)} />
+            <TrendRow label="Replied" values={weekly.map((w) => w.replied)} color="#10b981" total={totalReplied} />
             <TrendRow label="Contracted" values={weekly.map((w) => w.contracted)} color="#10b981" total={totalContracted} />
           </div>
           <p className="text-[11px] text-zinc-400 mt-4 pt-4 border-t border-zinc-100">

@@ -107,6 +107,10 @@ export const api = {
       }),
   },
 
+  insights: {
+    activity: () => request<{ headline: string; body: string; confidence: string }>("/insights/activity"),
+  },
+
   outreach: {
     launch: (campaignId: string, leadIds: string[], messageTemplate: string) =>
       request<{ sent: number; skipped: number; results: { lead_id: string; phone: string; status: string; error?: string }[] }>("/outreach/launch", {

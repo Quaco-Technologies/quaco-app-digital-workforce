@@ -67,7 +67,7 @@ export default function SequencesPage() {
         </div>
         <button
           onClick={startNew}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
         >
           <Plus size={14} /> New Sequence
         </button>
@@ -145,7 +145,7 @@ export default function SequencesPage() {
             <p className="text-sm text-zinc-500 mt-1 mb-4">
               Add a rule and we&apos;ll keep nudging owners on autopilot.
             </p>
-            <button onClick={startNew} className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+            <button onClick={startNew} className="text-sm font-medium text-blue-600 hover:text-blue-700">
               + Create your first sequence
             </button>
           </div>
@@ -174,7 +174,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
     <button
       onClick={onChange}
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-        on ? "bg-indigo-600" : "bg-zinc-200"
+        on ? "bg-blue-600" : "bg-zinc-200"
       }`}
     >
       <span
@@ -210,7 +210,7 @@ function SequenceEditor({
             <input
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-indigo-400"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-blue-400"
             />
           </Field>
 
@@ -218,7 +218,7 @@ function SequenceEditor({
             <select
               value={draft.trigger}
               onChange={(e) => setDraft({ ...draft, trigger: e.target.value as MockSequence["trigger"] })}
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-indigo-400"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-blue-400"
             >
               <option value="no_reply">No reply</option>
               <option value="interested">Owner interested</option>
@@ -234,7 +234,7 @@ function SequenceEditor({
               max={90}
               value={draft.delay_days}
               onChange={(e) => setDraft({ ...draft, delay_days: parseInt(e.target.value || "0", 10) })}
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-indigo-400"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-blue-400"
             />
           </Field>
 
@@ -243,7 +243,7 @@ function SequenceEditor({
               rows={4}
               value={draft.message_template}
               onChange={(e) => setDraft({ ...draft, message_template: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-indigo-400 resize-none"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-blue-400 resize-none"
             />
           </Field>
         </div>
@@ -257,7 +257,7 @@ function SequenceEditor({
           </button>
           <button
             onClick={() => onSave(draft)}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
           >
             <CheckCircle2 size={13} /> Save
           </button>

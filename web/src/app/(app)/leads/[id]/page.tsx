@@ -222,7 +222,7 @@ export default function LeadDetailPage() {
                       <a
                         key={p}
                         href={`tel:${p}`}
-                        className="flex items-center gap-2 text-sm text-zinc-700 hover:text-indigo-600"
+                        className="flex items-center gap-2 text-sm text-zinc-700 hover:text-blue-600"
                       >
                         <Phone size={12} /> {p}
                       </a>
@@ -237,7 +237,7 @@ export default function LeadDetailPage() {
                       <a
                         key={e}
                         href={`mailto:${e}`}
-                        className="flex items-center gap-2 text-sm text-zinc-700 hover:text-indigo-600"
+                        className="flex items-center gap-2 text-sm text-zinc-700 hover:text-blue-600"
                       >
                         <Mail size={12} /> {e}
                       </a>

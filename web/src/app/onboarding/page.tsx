@@ -36,8 +36,8 @@ const INVESTOR_TYPES = [
     icon: Handshake,
     label: "Wholesale",
     desc: "Assign contracts to other investors",
-    color: "border-purple-500/40 bg-purple-500/5 text-purple-300",
-    iconColor: "text-purple-400",
+    color: "border-emerald-500/40 bg-emerald-500/5 text-emerald-300",
+    iconColor: "text-emerald-400",
   },
   {
     value: "new",
@@ -144,7 +144,7 @@ export default function OnboardingPage() {
   };
 
   const inputClass =
-    "w-full px-3.5 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors";
+    "w-full px-3.5 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors";
 
   const labelClass = "block text-xs font-medium text-zinc-400 mb-1.5";
 
@@ -152,10 +152,10 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
       {/* Logo */}
       <div className="flex items-center gap-2 mb-10">
-        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center">
+        <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
           <Zap size={16} className="text-white" />
         </div>
-        <span className="text-white font-semibold tracking-tight">Quaco</span>
+        <span className="text-white font-semibold tracking-tight">Acquire</span>
       </div>
 
       {/* Progress bar */}
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
             <div
               key={i}
               className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                i + 1 <= step ? "bg-indigo-500" : "bg-zinc-800"
+                i + 1 <= step ? "bg-blue-500" : "bg-zinc-800"
               }`}
             />
           ))}
@@ -299,7 +299,7 @@ export default function OnboardingPage() {
                       onClick={() => togglePropertyType(type)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
                         form.typical_property_types.includes(type)
-                          ? "bg-indigo-600 border-indigo-500 text-white"
+                          ? "bg-blue-600 border-blue-500 text-white"
                           : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500"
                       }`}
                     >
@@ -327,7 +327,7 @@ export default function OnboardingPage() {
                       onClick={() => set("experience_level", value)}
                       className={`p-3 rounded-xl border text-left transition-all ${
                         form.experience_level === value
-                          ? "bg-indigo-600/10 border-indigo-500 text-white"
+                          ? "bg-blue-600/10 border-blue-500 text-white"
                           : "bg-zinc-800/50 border-zinc-700 hover:border-zinc-600 text-zinc-300"
                       }`}
                     >
@@ -346,7 +346,7 @@ export default function OnboardingPage() {
               </div>
 
               <div>
-                <label className={labelClass}>How did you hear about Quaco? <span className="text-zinc-600">(optional)</span></label>
+                <label className={labelClass}>How did you hear about Acquire? <span className="text-zinc-600">(optional)</span></label>
                 <select value={form.referral_source}
                   onChange={(e) => set("referral_source", e.target.value)}
                   className={`${inputClass} cursor-pointer`}>
@@ -370,7 +370,7 @@ export default function OnboardingPage() {
             <button
               onClick={next}
               disabled={!canAdvance()}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-5 py-2.5 rounded-xl transition-all text-sm"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-5 py-2.5 rounded-xl transition-all text-sm"
             >
               Continue <ArrowRight size={14} />
             </button>
@@ -378,7 +378,7 @@ export default function OnboardingPage() {
             <button
               onClick={handleFinish}
               disabled={!canAdvance() || saving}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition-all text-sm"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-xl transition-all text-sm"
             >
               {saving ? "Saving…" : "Go to dashboard →"}
             </button>

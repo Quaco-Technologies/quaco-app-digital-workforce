@@ -98,11 +98,11 @@ export function Sidebar() {
   return (
     <aside className="w-60 shrink-0 bg-zinc-950 min-h-screen flex flex-col">
       <div className="px-5 py-6 flex items-center gap-2 border-b border-zinc-800">
-        <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+        <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
           <Zap size={14} className="text-white" />
         </div>
         <span className="text-white font-semibold tracking-tight text-sm">
-          Quaco
+          Acquire
         </span>
       </div>
 
@@ -129,7 +129,7 @@ export function Sidebar() {
                   <Icon size={15} />
                   <span className="flex-1">{label}</span>
                   {href === "/inbox" && unread > 0 && (
-                    <span className="text-[10px] font-semibold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    <span className="text-[10px] font-semibold bg-gradient-to-br from-blue-500 to-blue-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                       {unread > 99 ? "99+" : unread}
                     </span>
                   )}

@@ -87,7 +87,7 @@ export default function ContractsPage() {
                 return (
                   <tr key={c.id} className="hover:bg-zinc-50/40 transition-colors">
                     <td className="px-5 py-3.5">
-                      <Link href={`/leads/${c.lead_id}`} className="font-medium text-zinc-900 hover:text-indigo-600">
+                      <Link href={`/leads/${c.lead_id}`} className="font-medium text-zinc-900 hover:text-blue-600">
                         {c.address}
                       </Link>
                       <p className="text-[11px] text-zinc-400 mt-0.5 flex items-center gap-1">
@@ -96,8 +96,8 @@ export default function ContractsPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-indigo-50 rounded-full flex items-center justify-center">
-                          <UserIcon size={11} className="text-indigo-500" />
+                        <div className="w-6 h-6 bg-blue-50 rounded-full flex items-center justify-center">
+                          <UserIcon size={11} className="text-blue-500" />
                         </div>
                         <span className="text-sm text-zinc-800">{c.owner_name}</span>
                       </div>
@@ -120,10 +120,13 @@ export default function ContractsPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <button className="text-indigo-600 hover:text-indigo-700 flex items-center gap-1 text-xs font-medium">
+                      <Link
+                        href={`/leads/${c.lead_id}`}
+                        className="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-xs font-medium"
+                      >
                         <ExternalLink size={11} />
                         Open
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 );

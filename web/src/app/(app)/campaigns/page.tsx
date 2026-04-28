@@ -37,7 +37,7 @@ export default function CampaignsPage() {
         </div>
         <Link
           href="/pipeline"
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
         >
           <Play size={13} />
           New Campaign
@@ -51,7 +51,7 @@ export default function CampaignsPage() {
       ) : campaigns.length === 0 ? (
         <div className="py-20 text-center">
           <p className="text-sm text-zinc-400">No campaigns yet.</p>
-          <Link href="/pipeline" className="text-sm text-indigo-600 hover:text-indigo-700 mt-1 inline-block">
+          <Link href="/pipeline" className="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
             Run your first pipeline →
           </Link>
         </div>
@@ -102,7 +102,7 @@ export default function CampaignsPage() {
                     </div>
                     <div className="text-zinc-200 text-lg">→</div>
                     <div className="text-center">
-                      <p className={`text-lg font-bold ${c.saved_count > 0 ? "text-indigo-600" : "text-zinc-900"}`}>
+                      <p className={`text-lg font-bold ${c.saved_count > 0 ? "text-blue-600" : "text-zinc-900"}`}>
                         {c.saved_count.toLocaleString()}
                       </p>
                       <p className="text-xs text-zinc-400">Ready to Contact</p>
@@ -112,7 +112,7 @@ export default function CampaignsPage() {
 
                 <div className="ml-4 flex-shrink-0">
                   {c.status === "complete" && c.saved_count > 0 ? (
-                    <CheckCircle size={20} className="text-indigo-400" />
+                    <CheckCircle size={20} className="text-blue-400" />
                   ) : c.status === "running" ? (
                     <Loader2 size={20} className="text-blue-400 animate-spin" />
                   ) : (

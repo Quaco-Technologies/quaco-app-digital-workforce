@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Campaign, EnrichedLead, InboxThread, Lead } from "@/lib/types";
-import { fmt$$, fmtDate, STATUS_LABEL, PIPELINE_REC_STYLE } from "@/lib/utils";
+import { fmt$$, PIPELINE_REC_STYLE } from "@/lib/utils";
 import {
-  Play, Folder, Users, MessageSquare, FileSignature,
+  Play, Users, MessageSquare, FileSignature,
   TrendingUp, Phone, ArrowRight, Loader2, Activity,
-  Clock, MapPin, Sparkles,
+  MapPin, Sparkles,
 } from "lucide-react";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 import { SparkLine } from "@/components/SparkLine";
+import { LiveDot } from "@/components/LiveDot";
+import { LiveMessageFeed } from "@/components/LiveMessageFeed";
+import { AIInsight } from "@/components/AIInsight";
 
 export default function DashboardPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -43,21 +46,18 @@ export default function DashboardPage() {
 
   const unread = threads.filter((t) => t.has_unread_reply).length;
   const inNegotiation = leads.filter((l) => l.status === "negotiating").length;
-  const underContract = leads.filter((l) => l.status === "under_contract").length;
   const totalAgreed = contracts
     .filter((c) => c.status !== "voided")
     .reduce((s, c) => s + c.agreed_price, 0);
   const runningCampaigns = campaigns.filter((c) => c.status === "running").length;
 
-  // Synthetic 14-day activity sparkline (records scraped per day)
   const activityTrend = Array.from({ length: 14 }, (_, i) =>
     20 + Math.round(Math.sin(i / 1.7) * 12) + i * 2 + (i === 13 ? 18 : 0)
   );
 
   const recentLeads = [...actionable]
     .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
-    .slice(0, 5);
-  const hotThreads = threads.filter((t) => t.has_unread_reply).slice(0, 4);
+    .slice(0, 4);
 
   if (loading) {
     return (
@@ -67,133 +67,135 @@ export default function DashboardPage() {
     );
   }
 
-  const isFirstRun = campaigns.length === 0 && leads.length === 0;
-
-  if (isFirstRun) {
+  if (campaigns.length === 0 && leads.length === 0) {
     return <FirstRunHero />;
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
       {/* Header */}
       <div className="flex items-start justify-between mb-7">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Command Center</h1>
-          <p className="text-sm text-zinc-500 mt-1">
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-2xl font-bold text-zinc-900">Command Center</h1>
+            {runningCampaigns > 0 && <LiveDot color="red" label="LIVE" />}
+          </div>
+          <p className="text-sm text-zinc-500">
             {runningCampaigns > 0
-              ? `${runningCampaigns} campaign${runningCampaigns === 1 ? "" : "s"} running.`
+              ? `${runningCampaigns} campaign${runningCampaigns === 1 ? "" : "s"} actively scraping right now.`
               : "Your acquisition machine at a glance."}
           </p>
         </div>
         <Link
           href="/pipeline"
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          className="flex items-center gap-2 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02]"
         >
           <Play size={13} /> New Campaign
         </Link>
       </div>
 
-      {/* Hero KPI strip */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* KPI strip */}
+      <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
         <KPI
-          icon={<Users size={14} className="text-indigo-500" />}
+          icon={<Users size={14} />}
           label="Ready to Contact"
           value={actionable.length.toString()}
-          accent="text-indigo-700"
+          accent="text-blue-700"
           href="/leads"
         />
         <KPI
-          icon={<MessageSquare size={14} className="text-purple-500" />}
+          icon={<MessageSquare size={14} />}
           label="Owners Replied"
           value={unread.toString()}
           subtitle={unread > 0 ? "needs your eyes" : "all clear"}
-          accent={unread > 0 ? "text-purple-700" : "text-zinc-700"}
+          accent={unread > 0 ? "text-emerald-700" : "text-zinc-700"}
           href="/inbox"
           highlight={unread > 0}
         />
         <KPI
-          icon={<TrendingUp size={14} className="text-amber-500" />}
+          icon={<TrendingUp size={14} />}
           label="In Negotiation"
           value={inNegotiation.toString()}
-          accent="text-amber-700"
+          accent="text-blue-700"
           href="/board"
         />
         <KPI
-          icon={<FileSignature size={14} className="text-green-600" />}
+          icon={<FileSignature size={14} />}
           label="Agreed Value"
           value={fmt$$(totalAgreed)}
-          subtitle={`${underContract + contracts.filter((c) => c.status === "completed").length} deals`}
+          subtitle={`${contracts.filter((c) => c.status === "completed").length} signed`}
           accent="text-emerald-700"
           href="/contracts"
         />
       </div>
 
       <div className="grid grid-cols-3 gap-6 mb-6">
-        {/* Activity card */}
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-6 text-white col-span-2">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Activity size={14} />
-                <p className="text-xs font-medium uppercase tracking-wide opacity-80">Last 14 Days</p>
-              </div>
-              <p className="text-3xl font-bold">
-                {activityTrend.reduce((s, n) => s + n, 0).toLocaleString()} records
-              </p>
-              <p className="text-sm opacity-80 mt-0.5">processed across all campaigns</p>
-            </div>
-            <Sparkles size={20} className="opacity-60" />
+        {/* Activity card with AI insight */}
+        <div className="col-span-2 relative overflow-hidden rounded-2xl text-white shadow-xl shadow-blue-500/20 animate-fade-up">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-emerald-600 animate-gradient" />
+          <div className="absolute inset-0 opacity-20 pointer-events-none">
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/30 blur-3xl rounded-full" />
+            <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-emerald-300/30 blur-3xl rounded-full" />
           </div>
-          <div className="mt-4">
-            <SparkLine
-              values={activityTrend}
-              width={520}
-              height={70}
-              stroke="white"
-              fill="rgba(255,255,255,0.2)"
-            />
+          <div className="relative p-6">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity size={14} />
+                  <p className="text-xs font-medium uppercase tracking-wide opacity-80">Last 14 Days</p>
+                </div>
+                <p className="text-3xl font-bold">
+                  {activityTrend.reduce((s, n) => s + n, 0).toLocaleString()} records
+                </p>
+                <p className="text-sm opacity-80 mt-0.5">processed across all campaigns</p>
+              </div>
+              <Sparkles size={20} className="opacity-60" />
+            </div>
+
+            <div className="my-4">
+              <SparkLine
+                values={activityTrend}
+                width={520}
+                height={64}
+                stroke="white"
+                fill="rgba(255,255,255,0.18)"
+              />
+            </div>
+
+            <AIInsight />
           </div>
         </div>
 
-        {/* Quick links */}
-        <div className="bg-white border border-zinc-200 rounded-2xl p-5">
-          <h3 className="font-semibold text-zinc-900 mb-3">Jump to</h3>
-          <div className="space-y-1.5">
-            <QuickLink href="/board" icon={<TrendingUp size={13} />} label="Pipeline Board" hint="Kanban by stage" />
-            <QuickLink href="/inbox" icon={<MessageSquare size={13} />} label="Inbox" hint={unread > 0 ? `${unread} new` : "All threads"} />
-            <QuickLink href="/analytics" icon={<Activity size={13} />} label="Analytics" hint="Funnel + reply rate" />
-            <QuickLink href="/contracts" icon={<FileSignature size={13} />} label="Contracts" hint="Out for signature" />
-            <QuickLink href="/sequences" icon={<Clock size={13} />} label="Sequences" hint="Auto follow-ups" />
-          </div>
-        </div>
+        {/* Live message feed */}
+        <LiveMessageFeed heading="Live Conversations" />
       </div>
 
-      {/* Hot threads + recent leads */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-5">
+      {/* Hot replies + new leads */}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-5 animate-fade-up">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
-              <MessageSquare size={15} className="text-purple-500" />
+              <MessageSquare size={15} className="text-emerald-500" />
               Hot Replies
             </h3>
-            <Link href="/inbox" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+            <Link href="/inbox" className="text-xs text-blue-600 hover:text-blue-700 font-medium">
               Inbox →
             </Link>
           </div>
-          {hotThreads.length === 0 ? (
+          {threads.filter((t) => t.has_unread_reply).length === 0 ? (
             <p className="text-sm text-zinc-400 py-6 text-center">
               No new replies. Your AI agent is on it.
             </p>
           ) : (
-            <div className="space-y-2">
-              {hotThreads.map((t) => (
+            <div className="space-y-2 stagger-children">
+              {threads.filter((t) => t.has_unread_reply).slice(0, 4).map((t) => (
                 <Link
                   key={t.lead_id}
                   href={`/leads/${t.lead_id}`}
-                  className="block bg-purple-50/40 hover:bg-purple-50 border border-purple-100 rounded-lg p-3 transition-colors"
+                  className="block bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-100 rounded-lg p-3 transition-all hover:translate-x-0.5"
                 >
                   <div className="flex items-start gap-2">
-                    <span className="h-2 w-2 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 animate-pulse" />
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-sm text-zinc-900 truncate">
                         {t.owner_name ?? "Unknown owner"}
@@ -207,13 +209,13 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-5">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-5 animate-fade-up">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
-              <Users size={15} className="text-indigo-500" />
+              <Users size={15} className="text-blue-500" />
               New Qualified Leads
             </h3>
-            <Link href="/leads" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+            <Link href="/leads" className="text-xs text-blue-600 hover:text-blue-700 font-medium">
               All leads →
             </Link>
           </div>
@@ -222,7 +224,7 @@ export default function DashboardPage() {
               No new qualified leads yet — run a pipeline to find some.
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 stagger-children">
               {recentLeads.map((lead) => {
                 const c = enrichedById.get(lead.id);
                 const rec = lead.pipeline_recommendation
@@ -232,7 +234,7 @@ export default function DashboardPage() {
                   <Link
                     key={lead.id}
                     href={`/leads/${lead.id}`}
-                    className="block hover:bg-zinc-50 rounded-lg p-2.5 transition-colors"
+                    className="block hover:bg-zinc-50 rounded-lg p-2.5 transition-all hover:translate-x-0.5"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -244,7 +246,7 @@ export default function DashboardPage() {
                             <>
                               <span className="text-zinc-300">·</span>
                               <Phone size={9} />
-                              <span className="text-indigo-600 font-medium">{c.phones[0]}</span>
+                              <span className="text-blue-600 font-medium">{c.phones[0]}</span>
                             </>
                           )}
                         </div>
@@ -267,55 +269,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Recent campaigns */}
-      <div className="bg-white border border-zinc-200 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
-            <Folder size={15} className="text-zinc-500" />
-            Recent Campaigns
-          </h3>
-          <Link href="/campaigns" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-            All campaigns →
-          </Link>
-        </div>
-        {campaigns.length === 0 ? (
-          <p className="text-sm text-zinc-400 py-4 text-center">No campaigns yet.</p>
-        ) : (
-          <div className="space-y-1">
-            {campaigns.slice(0, 4).map((c) => (
-              <Link
-                key={c.id}
-                href={`/campaigns/${c.id}`}
-                className="flex items-center justify-between hover:bg-zinc-50 rounded-lg px-3 py-2.5 transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-7 h-7 bg-indigo-50 rounded-lg flex items-center justify-center shrink-0">
-                    <MapPin size={12} className="text-indigo-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-900 truncate">{c.name}</p>
-                    <p className="text-[11px] text-zinc-400">{fmtDate(c.created_at)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-5 shrink-0 ml-3">
-                  <span className="text-xs text-zinc-500">
-                    {c.scraped_count.toLocaleString()} scraped
-                  </span>
-                  <span className="text-sm font-semibold text-indigo-600">
-                    {c.saved_count} leads
-                  </span>
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                    c.status === "running" ? "bg-blue-50 text-blue-600" : "bg-zinc-100 text-zinc-500"
-                  }`}>
-                    {c.status === "running" ? "Running" : "Done"}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -334,76 +287,51 @@ function KPI({
   return (
     <Link
       href={href}
-      className={`group bg-white border rounded-xl p-5 transition-all ${
+      className={`group relative bg-white border rounded-xl p-5 transition-all hover:-translate-y-0.5 ${
         highlight
-          ? "border-purple-300 ring-1 ring-purple-200 hover:ring-2"
-          : "border-zinc-200 hover:border-zinc-300 hover:shadow-sm"
+          ? "border-emerald-300 ring-1 ring-emerald-200 hover:ring-2 hover:shadow-lg hover:shadow-emerald-500/10"
+          : "border-zinc-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/10"
       }`}
     >
       <div className="flex items-center gap-2 mb-2">
-        {icon}
+        <span className={highlight ? "text-emerald-500" : "text-blue-500"}>{icon}</span>
         <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wide">{label}</p>
       </div>
       <p className={`text-3xl font-bold ${accent}`}>{value}</p>
       {subtitle && <p className="text-[11px] text-zinc-400 mt-1">{subtitle}</p>}
-    </Link>
-  );
-}
-
-function QuickLink({
-  href, icon, label, hint,
-}: { href: string; icon: React.ReactNode; label: string; hint: string }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center justify-between hover:bg-zinc-50 rounded-lg px-2.5 py-2 transition-colors group"
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="text-zinc-400 group-hover:text-indigo-500 transition-colors">{icon}</div>
-        <p className="text-sm font-medium text-zinc-800">{label}</p>
-      </div>
-      <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-        <span>{hint}</span>
-        <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
-      </div>
+      <ArrowRight
+        size={14}
+        className="absolute top-5 right-5 text-zinc-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all"
+      />
     </Link>
   );
 }
 
 function FirstRunHero() {
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-10 text-white mb-6">
-        <Sparkles size={28} className="mb-4 opacity-80" />
-        <h1 className="text-3xl font-bold mb-2">Welcome to Quaco</h1>
-        <p className="text-indigo-100 max-w-md mb-6">
-          Tell us your buy box and we&apos;ll find off-market deals automatically — county records,
-          skip-traced phone numbers, ARV-based offers, and AI-driven SMS negotiation.
-        </p>
-        <Link
-          href="/pipeline"
-          className="inline-flex items-center gap-2 bg-white hover:bg-indigo-50 text-indigo-700 text-sm font-semibold px-5 py-3 rounded-xl transition-colors"
-        >
-          <Play size={14} /> Run your first campaign
-        </Link>
+    <div className="p-8 max-w-3xl mx-auto animate-fade-in">
+      <div className="relative overflow-hidden rounded-3xl text-white mb-6 shadow-xl shadow-blue-500/30">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-emerald-600 animate-gradient" />
+        <div className="relative p-10">
+          <Sparkles size={28} className="mb-4 opacity-90" />
+          <h1 className="text-3xl font-bold mb-2">Welcome to Acquire</h1>
+          <p className="text-blue-50 max-w-md mb-6">
+            Tell us your buy box and we&apos;ll find off-market deals automatically — county records,
+            skip-traced phone numbers, ARV-based offers, and AI-driven SMS negotiation.
+          </p>
+          <Link
+            href="/pipeline"
+            className="inline-flex items-center gap-2 bg-white hover:bg-blue-50 text-blue-700 text-sm font-semibold px-5 py-3 rounded-xl transition-all hover:scale-[1.02]"
+          >
+            <Play size={14} /> Run your first campaign
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <HowStep
-          num={1}
-          title="Define your buy box"
-          body="City, county, price range, beds, property types. Takes 30 seconds."
-        />
-        <HowStep
-          num={2}
-          title="Let the agent run"
-          body="Scrape records → skip trace → calculate offers → start outreach."
-        />
-        <HowStep
-          num={3}
-          title="Reply or close deals"
-          body="Owners reply by SMS. AI negotiates. You sign contracts."
-        />
+      <div className="grid grid-cols-3 gap-4 stagger-children">
+        <HowStep num={1} title="Define your buy box" body="City, county, price range, beds, property types. Takes 30 seconds." />
+        <HowStep num={2} title="Let the agent run" body="Scrape records → skip trace → calculate offers → start outreach." />
+        <HowStep num={3} title="Reply or close deals" body="Owners reply by SMS. AI negotiates. You sign contracts." />
       </div>
     </div>
   );
@@ -411,8 +339,8 @@ function FirstRunHero() {
 
 function HowStep({ num, title, body }: { num: number; title: string; body: string }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-5">
-      <div className="w-7 h-7 bg-indigo-100 text-indigo-700 font-bold rounded-full flex items-center justify-center text-sm mb-3">
+    <div className="bg-white border border-zinc-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
+      <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-emerald-500 text-white font-bold rounded-full flex items-center justify-center text-sm mb-3">
         {num}
       </div>
       <p className="font-semibold text-zinc-900 mb-1">{title}</p>

@@ -34,11 +34,11 @@ export const STATUS_LABEL: Record<LeadStatus, string> = {
 
 export const STATUS_COLOR: Record<LeadStatus, string> = {
   new: "bg-zinc-100 text-zinc-600",
-  skip_traced: "bg-blue-50 text-blue-700",
-  enriched: "bg-indigo-50 text-indigo-700",
+  skip_traced: "bg-sky-50 text-sky-700",
+  enriched: "bg-blue-50 text-blue-700",
   analyzed: "bg-yellow-50 text-yellow-700",
   outreach: "bg-orange-50 text-orange-700",
-  negotiating: "bg-purple-50 text-purple-700",
+  negotiating: "bg-cyan-50 text-cyan-700",
   under_contract: "bg-green-50 text-green-700",
   dead: "bg-red-50 text-red-500",
   closed: "bg-emerald-50 text-emerald-700",

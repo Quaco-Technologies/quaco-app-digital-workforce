@@ -185,8 +185,8 @@ export default function PipelinePage() {
     }
   };
 
-  const selectClass = "w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none";
-  const inputClass  = "w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500";
+  const selectClass = "w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none";
+  const inputClass  = "w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelClass  = "block text-xs font-medium text-zinc-500 mb-1.5";
 
   // ── IDLE: buy-box form ─────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ export default function PipelinePage() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-zinc-900">Run Pipeline</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Enter a county and your buy box — Quaco finds properties, skip traces owners, and calculates offers automatically.
+            Enter a county and your buy box — Acquire finds properties, skip traces owners, and calculates offers automatically.
           </p>
         </div>
 
@@ -258,7 +258,7 @@ export default function PipelinePage() {
                     onClick={() => { set("min_price", p.min); set("max_price", p.max); }}
                     className={`py-2 text-xs rounded-lg font-medium transition-colors ${
                       form.min_price === p.min && form.max_price === p.max
-                        ? "bg-indigo-600 text-white"
+                        ? "bg-blue-600 text-white"
                         : "bg-zinc-50 border border-zinc-200 text-zinc-600 hover:border-zinc-300"
                     }`}
                   >
@@ -287,7 +287,7 @@ export default function PipelinePage() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-indigo-600 font-medium mt-2">
+              <p className="text-xs text-blue-600 font-medium mt-2">
                 {fmtPrice(form.min_price)} – {fmtPrice(form.max_price)}
               </p>
             </div>
@@ -303,7 +303,7 @@ export default function PipelinePage() {
                     onClick={() => set("min_beds", n)}
                     className={`w-10 h-10 text-sm rounded-lg font-semibold transition-colors ${
                       form.min_beds === n
-                        ? "bg-indigo-600 text-white"
+                        ? "bg-blue-600 text-white"
                         : "bg-zinc-50 border border-zinc-200 text-zinc-600 hover:border-zinc-300"
                     }`}
                   >
@@ -324,7 +324,7 @@ export default function PipelinePage() {
                     onClick={() => toggleType(value)}
                     className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                       form.property_types.includes(value)
-                        ? "bg-indigo-600 text-white"
+                        ? "bg-blue-600 text-white"
                         : "bg-zinc-50 border border-zinc-200 text-zinc-600 hover:border-zinc-300"
                     }`}
                   >
@@ -343,7 +343,7 @@ export default function PipelinePage() {
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-colors text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition-colors text-sm"
           >
             <Play size={15} fill="currentColor" />
             Find Deals in {form.county || "this county"}, {form.state}
@@ -418,10 +418,10 @@ export default function PipelinePage() {
                 <div key={i} className="flex items-start gap-3">
                   <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                     s === "done"    ? "bg-green-50" :
-                    s === "running" ? "bg-indigo-50" : "bg-zinc-50"
+                    s === "running" ? "bg-blue-50" : "bg-zinc-50"
                   }`}>
                     {s === "done"    ? <CheckCircle2 size={16} className="text-green-500" />
-                   : s === "running" ? <Loader2 size={16} className="text-indigo-500 animate-spin" />
+                   : s === "running" ? <Loader2 size={16} className="text-blue-500 animate-spin" />
                    :                   <Icon size={16} className="text-zinc-300" />}
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
@@ -430,7 +430,7 @@ export default function PipelinePage() {
                         {step.label}
                       </p>
                       {s === "running" && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-semibold animate-pulse">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-semibold animate-pulse">
                           running
                         </span>
                       )}
@@ -450,7 +450,7 @@ export default function PipelinePage() {
           <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden mb-5">
             <div className="px-5 py-3.5 border-b border-zinc-100 flex items-center justify-between">
               <h3 className="font-semibold text-zinc-900 text-sm">Live Feed — {newLeads.length} leads</h3>
-              <Link href="/leads" className="text-xs text-indigo-600 hover:text-indigo-700">View all →</Link>
+              <Link href="/leads" className="text-xs text-blue-600 hover:text-blue-700">View all →</Link>
             </div>
             <div className="divide-y divide-zinc-50">
               {newLeads.slice(0, 10).map((lead) => (
@@ -462,7 +462,7 @@ export default function PipelinePage() {
                     <p className="text-sm font-medium text-zinc-800 truncate">{lead.address}</p>
                     <p className="text-xs text-zinc-400">{lead.city}, {lead.state}</p>
                     {(lead.phones?.length ?? 0) > 0 && (
-                      <p className="text-xs text-indigo-600 font-medium mt-0.5">{lead.phones![0]}</p>
+                      <p className="text-xs text-blue-600 font-medium mt-0.5">{lead.phones![0]}</p>
                     )}
                   </div>
                   <div className="text-right flex-shrink-0 ml-4">
@@ -489,7 +489,7 @@ export default function PipelinePage() {
         )}
 
         <div className="flex gap-3">
-          <Link href="/leads" className="flex-1 text-center py-2.5 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors">
+          <Link href="/leads" className="flex-1 text-center py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
             View Leads
           </Link>
           <button
@@ -541,7 +541,7 @@ export default function PipelinePage() {
 
       <div className="flex gap-3">
         <Link href="/leads"
-          className="flex-1 text-center py-3 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors">
+          className="flex-1 text-center py-3 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
           View All Leads
         </Link>
         <button

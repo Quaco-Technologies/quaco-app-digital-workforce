@@ -11,7 +11,7 @@ const COLUMNS: Array<{ key: LeadStatus; accent: string }> = [
   { key: "skip_traced",    accent: "border-t-blue-500"    },
   { key: "analyzed",       accent: "border-t-yellow-500"  },
   { key: "outreach",       accent: "border-t-orange-500"  },
-  { key: "negotiating",    accent: "border-t-purple-500"  },
+  { key: "negotiating",    accent: "border-t-blue-500"  },
   { key: "under_contract", accent: "border-t-emerald-500" },
   { key: "closed",         accent: "border-t-green-600"   },
 ];
@@ -95,7 +95,7 @@ export default function BoardPage() {
                           <Link
                             key={lead.id}
                             href={`/leads/${lead.id}`}
-                            className="block bg-white border border-zinc-200 rounded-lg p-3 hover:border-indigo-300 hover:shadow-sm transition-all"
+                            className="block bg-white border border-zinc-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all"
                           >
                             <div className="flex items-start justify-between gap-2 mb-1.5">
                               <p className="text-sm font-semibold text-zinc-900 leading-tight line-clamp-2">

@@ -48,7 +48,7 @@ export default function SettingsPage() {
     router.push("/login");
   };
 
-  const inputClass = "w-full px-3.5 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors";
+  const inputClass = "w-full px-3.5 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors";
   const labelClass = "block text-xs font-medium text-zinc-500 mb-1.5";
 
   return (
@@ -61,8 +61,8 @@ export default function SettingsPage() {
       {/* Profile */}
       <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-4">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
-            <UserIcon size={22} className="text-indigo-600" />
+          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+            <UserIcon size={22} className="text-blue-600" />
           </div>
           <div>
             <p className="font-semibold text-zinc-900">{displayName || user?.email}</p>
@@ -96,7 +96,7 @@ export default function SettingsPage() {
           <button
             onClick={saveProfile}
             disabled={saving || !displayName.trim()}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
           >
             {saved && <CheckCircle size={14} />}
             {saving ? "Saving…" : saved ? "Saved" : "Save Changes"}

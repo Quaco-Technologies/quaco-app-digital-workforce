@@ -96,7 +96,7 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-4 mt-0.5">
             <p className="text-sm text-zinc-500">{leads.length} qualified · {visible.length} shown</p>
             {outreachStats && outreachStats.total > 0 && (
-              <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                 {outreachStats.sent} contacted
               </span>
             )}
@@ -117,7 +117,7 @@ export default function CampaignDetailPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search address, owner, or phone…"
-          className="pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 w-72"
+          className="pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-72"
         />
       </div>
 
@@ -150,7 +150,7 @@ export default function CampaignDetailPage() {
                 return (
                   <tr key={lead.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3.5">
-                      <Link href={`/leads/${lead.id}`} className="font-medium text-zinc-900 hover:text-indigo-600">
+                      <Link href={`/leads/${lead.id}`} className="font-medium text-zinc-900 hover:text-blue-600">
                         {lead.address}
                       </Link>
                       <p className="text-xs text-zinc-400 mt-0.5">{lead.city}, {lead.state} {lead.zip}</p>
@@ -161,7 +161,7 @@ export default function CampaignDetailPage() {
                     <td className="px-5 py-3.5">
                       <p className="font-medium text-zinc-800 text-sm">{lead.owner_name ?? "—"}</p>
                       {lead.phones.slice(0, 2).map((p) => (
-                        <a key={p} href={`tel:${p}`} className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 mt-0.5">
+                        <a key={p} href={`tel:${p}`} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-0.5">
                           <Phone size={10} /> {p}
                         </a>
                       ))}
@@ -202,7 +202,7 @@ export default function CampaignDetailPage() {
                         value={lead.status}
                         disabled={updatingId === lead.id}
                         onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
-                        className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 ${STATUS_COLOR[lead.status]} ${updatingId === lead.id ? "opacity-50" : ""}`}
+                        className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${STATUS_COLOR[lead.status]} ${updatingId === lead.id ? "opacity-50" : ""}`}
                       >
                         {PIPELINE_STATUSES.map((s) => (
                           <option key={s} value={s}>{STATUS_LABEL[s]}</option>

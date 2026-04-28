@@ -53,7 +53,7 @@ export function ConversationFeed({ messages, leadId, canReply = false, onReplySe
                 className={cn(
                   "max-w-xs px-4 py-2.5 rounded-2xl text-sm",
                   msg.role === "agent"
-                    ? "bg-indigo-600 text-white rounded-br-sm"
+                    ? "bg-blue-600 text-white rounded-br-sm"
                     : "bg-zinc-100 text-zinc-800 rounded-bl-sm"
                 )}
               >
@@ -61,7 +61,7 @@ export function ConversationFeed({ messages, leadId, canReply = false, onReplySe
                 <p
                   className={cn(
                     "text-[10px] mt-1",
-                    msg.role === "agent" ? "text-indigo-200" : "text-zinc-400"
+                    msg.role === "agent" ? "text-blue-200" : "text-zinc-400"
                   )}
                 >
                   {new Date(msg.sent_at).toLocaleTimeString("en-US", {
@@ -90,12 +90,12 @@ export function ConversationFeed({ messages, leadId, canReply = false, onReplySe
               }}
               placeholder="Send a manual reply…"
               disabled={sending}
-              className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-indigo-400 disabled:bg-zinc-50"
+              className="flex-1 px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-blue-400 disabled:bg-zinc-50"
             />
             <button
               onClick={send}
               disabled={sending || !draft.trim()}
-              className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:bg-zinc-300 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-zinc-300 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               <Send size={14} />
               {sending ? "Sending…" : "Send"}

@@ -117,7 +117,7 @@ export default function LeadsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search address or owner…"
-              className="pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
+              className="pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
             />
           </div>
           {sources.length > 1 && (
@@ -143,7 +143,7 @@ export default function LeadsPage() {
               <button key={s} onClick={() => setFilter(s)}
                 className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
                   filter === s
-                    ? "bg-indigo-600 text-white"
+                    ? "bg-blue-600 text-white"
                     : "bg-white border border-zinc-200 text-zinc-600 hover:border-zinc-300"
                 }`}>
                 {s === "all" ? "All" : STATUS_LABEL[s as LeadStatus]}
@@ -186,15 +186,15 @@ export default function LeadsPage() {
                 return (
                   <tr key={lead.id} className="hover:bg-zinc-50 transition-colors">
                     <td className="px-5 py-3.5">
-                      <Link href={`/leads/${lead.id}`} className="font-medium text-zinc-900 hover:text-indigo-600">
+                      <Link href={`/leads/${lead.id}`} className="font-medium text-zinc-900 hover:text-blue-600">
                         {lead.address}
                       </Link>
                       <p className="text-xs text-zinc-400 mt-0.5">{lead.city}, {lead.state} {lead.zip}</p>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-indigo-50 rounded-full flex items-center justify-center flex-shrink-0">
-                          <User size={11} className="text-indigo-500" />
+                        <div className="w-6 h-6 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
+                          <User size={11} className="text-blue-500" />
                         </div>
                         <span className="text-sm text-zinc-800">
                           {lead.owner_name ?? contact?.owner_name ?? <span className="text-zinc-400 italic">—</span>}
@@ -207,7 +207,7 @@ export default function LeadsPage() {
                           {contact.phones.slice(0, 2).map((p) => (
                             <div key={p} className="flex items-center gap-1.5">
                               <Phone size={11} className="text-zinc-400 flex-shrink-0" />
-                              <a href={`tel:${p}`} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">{p}</a>
+                              <a href={`tel:${p}`} className="text-xs text-blue-600 hover:text-blue-700 font-medium">{p}</a>
                             </div>
                           ))}
                         </div>
@@ -233,7 +233,7 @@ export default function LeadsPage() {
                         value={lead.status}
                         disabled={updatingId === lead.id}
                         onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
-                        className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 ${STATUS_COLOR[lead.status]} ${updatingId === lead.id ? "opacity-50" : ""}`}
+                        className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${STATUS_COLOR[lead.status]} ${updatingId === lead.id ? "opacity-50" : ""}`}
                       >
                         {PIPELINE_STATUSES.map((s) => (
                           <option key={s} value={s}>{STATUS_LABEL[s]}</option>
