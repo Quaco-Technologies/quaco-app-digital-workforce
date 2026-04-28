@@ -15,6 +15,7 @@ import { SparkLine } from "@/components/SparkLine";
 import { LiveDot } from "@/components/LiveDot";
 import { LiveMessageFeed } from "@/components/LiveMessageFeed";
 import { AIInsight } from "@/components/AIInsight";
+import { CountUp } from "@/components/CountUp";
 
 // Demo data shown when the investor hasn't run a pipeline yet — so the dashboard
 // never looks empty during a sales pitch.
@@ -143,35 +144,36 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-6 mb-6">
-        {/* Activity card with AI insight */}
+        {/* Activity card — left half metric, right half AI insight */}
         <div className="col-span-2 relative overflow-hidden rounded-2xl text-white shadow-xl shadow-blue-500/30 animate-fade-up">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-emerald-600 animate-gradient" />
-          <div className="absolute inset-0 opacity-30 pointer-events-none">
-            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/40 blur-3xl rounded-full" />
-            <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-emerald-300/40 blur-3xl rounded-full" />
+          <div className="absolute inset-0 opacity-40 pointer-events-none">
+            <div className="absolute -top-16 -right-16 w-56 h-56 bg-white/50 blur-3xl rounded-full" />
+            <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-emerald-300/50 blur-3xl rounded-full" />
+            <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-cyan-200/40 blur-3xl rounded-full -translate-x-1/2 -translate-y-1/2" />
           </div>
-          <div className="relative p-6">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Activity size={14} />
-                  <p className="text-xs font-medium uppercase tracking-wide opacity-80">Last 14 Days</p>
-                </div>
-                <p className="text-3xl font-bold">{activityTrend.reduce((s, n) => s + n, 0).toLocaleString()} records</p>
-                <p className="text-sm opacity-80 mt-0.5">processed across all campaigns</p>
+          <div className="relative p-6 grid grid-cols-2 gap-5">
+            {/* Left: hero metric + sparkline */}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity size={14} />
+                <p className="text-[11px] font-semibold uppercase tracking-wider opacity-90">Last 14 Days</p>
               </div>
-              <Sparkles size={20} className="opacity-70" />
+              <p className="text-5xl font-bold leading-none mb-1">
+                <CountUp value={activityTrend.reduce((s, n) => s + n, 0)} />
+              </p>
+              <p className="text-sm opacity-90 mb-1">records processed</p>
+              <p className="text-xs opacity-75 mb-4">across all active campaigns</p>
+              <div className="mt-auto">
+                <SparkLine values={activityTrend} width={280} height={56} stroke="white" fill="rgba(255,255,255,0.28)" />
+              </div>
             </div>
-
-            <div className="my-4">
-              <SparkLine values={activityTrend} width={520} height={64} stroke="white" fill="rgba(255,255,255,0.22)" />
-            </div>
-
+            {/* Right: AI insight panel */}
             <AIInsight />
           </div>
         </div>
 
-        {/* Live message feed — always present */}
+        {/* Live message feed */}
         <LiveMessageFeed heading="Live Conversations" />
       </div>
 

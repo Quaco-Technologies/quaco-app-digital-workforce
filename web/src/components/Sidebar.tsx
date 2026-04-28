@@ -115,40 +115,49 @@ export function Sidebar() {
               </p>
             )}
             <div className="space-y-0.5">
-              {section.items.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                    isActive(href)
-                      ? "bg-zinc-800 text-white"
-                      : "text-zinc-400 hover:text-white hover:bg-zinc-900"
-                  )}
-                >
-                  <Icon size={15} />
-                  <span className="flex-1">{label}</span>
-                  {href === "/inbox" && unread > 0 && (
-                    <span className="text-[10px] font-semibold bg-gradient-to-br from-blue-500 to-blue-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                      {unread > 99 ? "99+" : unread}
-                    </span>
-                  )}
-                </Link>
-              ))}
+              {section.items.map(({ href, label, icon: Icon }) => {
+                const active = isActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      "relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200",
+                      active
+                        ? "bg-gradient-to-r from-blue-500/20 to-emerald-500/10 text-white font-medium shadow-inner"
+                        : "text-zinc-400 hover:text-white hover:bg-zinc-900/80 hover:translate-x-0.5"
+                    )}
+                  >
+                    {active && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-gradient-to-b from-blue-400 to-emerald-400" />
+                    )}
+                    <Icon size={15} className={active ? "text-blue-300" : ""} />
+                    <span className="flex-1">{label}</span>
+                    {href === "/inbox" && unread > 0 && (
+                      <span className="text-[10px] font-semibold bg-gradient-to-br from-blue-500 to-emerald-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-md shadow-blue-500/30">
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         ))}
       </nav>
 
-      <div className="px-3 py-4 border-t border-zinc-800 space-y-1">
+      <div className="px-3 py-4 border-t border-zinc-800/60 space-y-1">
         {user && (
-          <div className="px-3 py-2">
-            <p className="text-xs text-zinc-400 truncate">{user.email}</p>
+          <div className="flex items-center gap-2 px-3 py-2">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+              {(user.email ?? "?").charAt(0).toUpperCase()}
+            </div>
+            <p className="text-xs text-zinc-300 truncate min-w-0">{user.email}</p>
           </div>
         )}
         <button
           onClick={signOut}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-500 hover:text-white hover:bg-zinc-900 transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
         >
           <LogOut size={15} />
           Sign out

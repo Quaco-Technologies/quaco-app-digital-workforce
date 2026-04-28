@@ -29,7 +29,7 @@ export function AIInsight() {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="bg-black/25 backdrop-blur-md rounded-xl p-4 border border-white/30">
+    <div className="bg-black/25 backdrop-blur-md rounded-xl p-4 border border-white/30 flex flex-col h-full min-w-0">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white">
           <Sparkles size={12} />
@@ -52,9 +52,9 @@ export function AIInsight() {
           <div className="h-3 bg-white/30 rounded w-4/5 animate-pulse" />
         </div>
       ) : insight ? (
-        <div className="animate-fade-in">
-          <p className="text-sm font-semibold text-white mb-1">{insight.headline}</p>
-          <p className="text-xs text-white/95 leading-relaxed">{insight.body}</p>
+        <div className="animate-fade-in min-w-0">
+          <p className="text-sm font-semibold text-white mb-1.5 leading-snug">{insight.headline}</p>
+          <p className="text-xs text-white/95 leading-relaxed break-words">{insight.body}</p>
         </div>
       ) : null}
     </div>
