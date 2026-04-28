@@ -196,7 +196,14 @@ export default function LeadDetailPage() {
           )}
 
           {/* Conversation */}
-          <ConversationFeed messages={conversation} />
+          <ConversationFeed
+            messages={conversation}
+            leadId={lead.id}
+            canReply={!!contact?.phones?.length}
+            onReplySent={(msg) =>
+              setDetail((d) => (d ? { ...d, conversation: [...d.conversation, msg] } : d))
+            }
+          />
         </div>
 
         {/* Right column */}

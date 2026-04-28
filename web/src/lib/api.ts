@@ -1,4 +1,4 @@
-import { BuyBox, Campaign, CampaignLead, EnrichedLead, InvestorProfile, Lead, LeadDetail, LeadStatus } from "@/lib/types";
+import { BuyBox, Campaign, CampaignLead, EnrichedLead, InboxThread, InvestorProfile, Lead, LeadDetail, LeadStatus, Message } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -95,6 +95,15 @@ export const api = {
           investor_name: investor.name,
           investor_email: investor.email,
         }),
+      }),
+  },
+
+  inbox: {
+    list: () => request<InboxThread[]>("/inbox"),
+    reply: (leadId: string, body: string) =>
+      request<{ message_id: string; message: Message }>(`/inbox/${leadId}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
       }),
   },
 

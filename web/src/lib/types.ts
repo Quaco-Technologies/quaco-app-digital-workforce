@@ -108,6 +108,20 @@ export interface LeadDetail {
   conversation: Message[];
 }
 
+export interface InboxThread {
+  lead_id: string;
+  address: string;
+  city: string | null;
+  state: string | null;
+  owner_name: string | null;
+  last_body: string;
+  last_role: MessageRole;
+  last_sent_at: string;
+  message_count: number;
+  has_unread_reply: boolean;
+  lead_status: LeadStatus;
+}
+
 export interface EnrichedLead {
   id: string;
   address: string;

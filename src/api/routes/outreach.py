@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from src.api.deps import get_repos
 from src.api.middleware.auth import get_investor_id
+from src.models.message import MessageRole
 from src.repositories import Repositories
 from src.tools.telenyx_tools import send_sms
 from src.core.logging import get_logger
@@ -110,12 +111,17 @@ def launch_outreach(
             "sent_at": now,
         }).execute()
 
-        # Mark lead as contacted if sent
+        # Mark lead as contacted if sent — and mirror into the conversation log
+        # so the lead detail page shows the outbound SMS, not just owner replies.
         if status == "sent":
             repos.db.table("leads").update({
                 "outreach_status": "contacted",
                 "updated_at": now,
             }).eq("id", lead_id).execute()
+            try:
+                repos.messages.append(UUID(lead_id), MessageRole.AGENT, body)
+            except Exception as exc:
+                logger.warning("outreach.message_log_failed", lead_id=lead_id, error=str(exc)[:200])
 
         results.append({"lead_id": lead_id, "phone": phone, "status": status, "error": error})
 

@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Folder, Play, Settings, Zap, LogOut } from "lucide-react";
+import { LayoutDashboard, Folder, Play, Settings, Zap, LogOut, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { api } from "@/lib/api";
 
 const nav = [
   { href: "/dashboard",  label: "Dashboard",    icon: LayoutDashboard },
   { href: "/campaigns",  label: "Campaigns",    icon: Folder },
+  { href: "/inbox",      label: "Inbox",        icon: Inbox },
   { href: "/pipeline",   label: "Run Pipeline", icon: Play },
   { href: "/settings",   label: "Settings",     icon: Settings },
 ];
@@ -19,11 +21,26 @@ export function Sidebar() {
   const path = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [unread, setUnread] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      api.inbox.list()
+        .then((threads) => {
+          if (!cancelled) setUnread(threads.filter((t) => t.has_unread_reply).length);
+        })
+        .catch(() => { /* sidebar badge is best-effort */ });
+    };
+    refresh();
+    const interval = setInterval(refresh, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [path]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -54,7 +71,12 @@ export function Sidebar() {
             )}
           >
             <Icon size={15} />
-            {label}
+            <span className="flex-1">{label}</span>
+            {href === "/inbox" && unread > 0 && (
+              <span className="text-[10px] font-semibold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

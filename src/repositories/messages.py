@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
+from typing import Dict, List
 from uuid import UUID
 
 from supabase import Client
@@ -32,3 +32,31 @@ class MessageRepository:
             .execute()
         )
         return [Message(**row) for row in (res.data or [])]
+
+    def summarize_threads(self, lead_ids: List[str]) -> Dict[str, Dict]:
+        """For a set of leads, return per-lead {last_body, last_role, last_sent_at, count}.
+        Returns an empty dict for leads with no messages."""
+        if not lead_ids:
+            return {}
+        res = (
+            self._db.table("messages")
+            .select("lead_id,role,body,sent_at")
+            .in_("lead_id", lead_ids)
+            .order("sent_at", desc=True)
+            .limit(5000)
+            .execute()
+        )
+        rows = res.data or []
+        summary: Dict[str, Dict] = {}
+        for row in rows:
+            lid = row["lead_id"]
+            if lid not in summary:
+                summary[lid] = {
+                    "last_body": row["body"],
+                    "last_role": row["role"],
+                    "last_sent_at": row["sent_at"],
+                    "count": 1,
+                }
+            else:
+                summary[lid]["count"] += 1
+        return summary
