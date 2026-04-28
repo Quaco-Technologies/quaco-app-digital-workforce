@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-3 gap-6 mb-6">
         {/* Funnel */}
-        <div className="col-span-2 bg-white border border-zinc-200 rounded-xl p-6">
+        <div className="col-span-2 bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-zinc-900">Acquisition Funnel</h2>
             <span className="text-xs text-zinc-400">All time</span>
@@ -163,7 +163,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Weekly trend */}
-        <div className="bg-white border border-zinc-200 rounded-xl p-6">
+        <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-6">
           <h2 className="font-semibold text-zinc-900 mb-4">Last 8 Weeks</h2>
           <div className="space-y-3">
             <TrendRow label="Records" values={weekly.map((w) => w.scraped)} color="#a1a1aa" total={weekly.reduce((s, w) => s + w.scraped, 0)} />
@@ -178,7 +178,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Markets */}
-      <div className="bg-white border border-zinc-200 rounded-xl p-6">
+      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-zinc-900">Markets</h2>
           <span className="text-xs text-zinc-400">Active by reply rate</span>
@@ -228,7 +228,7 @@ function KPI({ icon, label, value, trend, subtitle }: {
   trend?: number[]; subtitle?: string;
 }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-5">
+    <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-5">
       <div className="flex items-center gap-2 text-zinc-400 mb-2">
         {icon}
         <p className="text-[11px] font-medium uppercase tracking-wide">{label}</p>

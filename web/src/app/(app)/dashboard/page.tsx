@@ -16,6 +16,21 @@ import { LiveDot } from "@/components/LiveDot";
 import { LiveMessageFeed } from "@/components/LiveMessageFeed";
 import { AIInsight } from "@/components/AIInsight";
 
+// Demo data shown when the investor hasn't run a pipeline yet — so the dashboard
+// never looks empty during a sales pitch.
+const DEMO_LEADS = [
+  { id: "d1", address: "3857 N High St",       city: "Atlanta",   state: "GA", offer_price: 187_500, owner: "Maria H.",   phone: "(404) 555-0142", rec: "pursue" },
+  { id: "d2", address: "1204 Maple Ridge Dr",  city: "Dallas",    state: "TX", offer_price: 142_000, owner: "James P.",   phone: "(214) 555-0188", rec: "pursue" },
+  { id: "d3", address: "62 Oak Lane",          city: "Atlanta",   state: "GA", offer_price: 95_000,  owner: "Linda G.",   phone: "(404) 555-0107", rec: "needs_review" },
+  { id: "d4", address: "991 Bayview Ave",      city: "Tampa",     state: "FL", offer_price: 215_000, owner: "Marcus C.",  phone: "(813) 555-0233", rec: "pursue" },
+] as const;
+
+const DEMO_HOT_REPLIES = [
+  { lead_id: "d1", owner: "Maria H.",  body: "Maybe. What kind of number are we talking?" },
+  { lead_id: "d4", owner: "Marcus C.", body: "I'd need at least $215k. Can you do that?" },
+  { lead_id: "d2", owner: "James P.",  body: "Send me the offer in writing." },
+] as const;
+
 export default function DashboardPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -39,25 +54,34 @@ export default function DashboardPage() {
   }, []);
 
   const enrichedById = new Map(enriched.map((e) => [e.id, e]));
-  const actionable = leads.filter((l) => {
+  const realActionable = leads.filter((l) => {
     const c = enrichedById.get(l.id);
     return (c?.phones ?? []).length > 0 && l.offer_price != null;
   });
 
-  const unread = threads.filter((t) => t.has_unread_reply).length;
-  const inNegotiation = leads.filter((l) => l.status === "negotiating").length;
-  const totalAgreed = contracts
-    .filter((c) => c.status !== "voided")
-    .reduce((s, c) => s + c.agreed_price, 0);
-  const runningCampaigns = campaigns.filter((c) => c.status === "running").length;
+  const isDemo = campaigns.length === 0 && leads.length === 0;
+
+  const actionableCount = isDemo ? 287 : realActionable.length;
+  const unreadCount = isDemo ? 7 : threads.filter((t) => t.has_unread_reply).length;
+  const inNegotiation = isDemo ? 12 : leads.filter((l) => l.status === "negotiating").length;
+  const totalAgreed = isDemo
+    ? 1_240_000
+    : contracts.filter((c) => c.status !== "voided").reduce((s, c) => s + c.agreed_price, 0);
+  const signedCount = isDemo ? 3 : contracts.filter((c) => c.status === "completed").length;
+  const runningCampaigns = isDemo ? 2 : campaigns.filter((c) => c.status === "running").length;
 
   const activityTrend = Array.from({ length: 14 }, (_, i) =>
     20 + Math.round(Math.sin(i / 1.7) * 12) + i * 2 + (i === 13 ? 18 : 0)
   );
 
-  const recentLeads = [...actionable]
+  const recentLeads = isDemo ? DEMO_LEADS : [...realActionable]
     .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
     .slice(0, 4);
+  const hotThreads = isDemo
+    ? DEMO_HOT_REPLIES
+    : threads.filter((t) => t.has_unread_reply).slice(0, 3).map((t) => ({
+        lead_id: t.lead_id, owner: t.owner_name ?? "Unknown owner", body: t.last_body,
+      }));
 
   if (loading) {
     return (
@@ -65,10 +89,6 @@ export default function DashboardPage() {
         <div className="py-20 text-center"><Loader2 size={20} className="text-zinc-300 animate-spin mx-auto" /></div>
       </div>
     );
-  }
-
-  if (campaigns.length === 0 && leads.length === 0) {
-    return <FirstRunHero />;
   }
 
   return (
@@ -79,6 +99,11 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-zinc-900">Command Center</h1>
             {runningCampaigns > 0 && <LiveDot color="red" label="LIVE" />}
+            {isDemo && (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                Demo Data
+              </span>
+            )}
           </div>
           <p className="text-sm text-zinc-500">
             {runningCampaigns > 0
@@ -88,7 +113,7 @@ export default function DashboardPage() {
         </div>
         <Link
           href="/pipeline"
-          className="flex items-center gap-2 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:scale-[1.02]"
+          className="flex items-center gap-2 bg-gradient-to-br from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02]"
         >
           <Play size={13} /> New Campaign
         </Link>
@@ -96,34 +121,22 @@ export default function DashboardPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
-        <KPI
-          icon={<Users size={14} />}
-          label="Ready to Contact"
-          value={actionable.length.toString()}
-          accent="text-blue-700"
-          href="/leads"
-        />
+        <KPI icon={<Users size={14} />} label="Ready to Contact" value={actionableCount.toString()} accent="text-blue-700" href="/leads" />
         <KPI
           icon={<MessageSquare size={14} />}
           label="Owners Replied"
-          value={unread.toString()}
-          subtitle={unread > 0 ? "needs your eyes" : "all clear"}
-          accent={unread > 0 ? "text-emerald-700" : "text-zinc-700"}
+          value={unreadCount.toString()}
+          subtitle={unreadCount > 0 ? "needs your eyes" : "all clear"}
+          accent={unreadCount > 0 ? "text-emerald-700" : "text-zinc-700"}
           href="/inbox"
-          highlight={unread > 0}
+          highlight={unreadCount > 0}
         />
-        <KPI
-          icon={<TrendingUp size={14} />}
-          label="In Negotiation"
-          value={inNegotiation.toString()}
-          accent="text-blue-700"
-          href="/board"
-        />
+        <KPI icon={<TrendingUp size={14} />} label="In Negotiation" value={inNegotiation.toString()} accent="text-cyan-700" href="/board" />
         <KPI
           icon={<FileSignature size={14} />}
           label="Agreed Value"
           value={fmt$$(totalAgreed)}
-          subtitle={`${contracts.filter((c) => c.status === "completed").length} signed`}
+          subtitle={`${signedCount} signed`}
           accent="text-emerald-700"
           href="/contracts"
         />
@@ -131,11 +144,11 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-3 gap-6 mb-6">
         {/* Activity card with AI insight */}
-        <div className="col-span-2 relative overflow-hidden rounded-2xl text-white shadow-xl shadow-blue-500/20 animate-fade-up">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-emerald-600 animate-gradient" />
-          <div className="absolute inset-0 opacity-20 pointer-events-none">
-            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/30 blur-3xl rounded-full" />
-            <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-emerald-300/30 blur-3xl rounded-full" />
+        <div className="col-span-2 relative overflow-hidden rounded-2xl text-white shadow-xl shadow-blue-500/30 animate-fade-up">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-emerald-600 animate-gradient" />
+          <div className="absolute inset-0 opacity-30 pointer-events-none">
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/40 blur-3xl rounded-full" />
+            <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-emerald-300/40 blur-3xl rounded-full" />
           </div>
           <div className="relative p-6">
             <div className="flex items-start justify-between mb-2">
@@ -144,35 +157,27 @@ export default function DashboardPage() {
                   <Activity size={14} />
                   <p className="text-xs font-medium uppercase tracking-wide opacity-80">Last 14 Days</p>
                 </div>
-                <p className="text-3xl font-bold">
-                  {activityTrend.reduce((s, n) => s + n, 0).toLocaleString()} records
-                </p>
+                <p className="text-3xl font-bold">{activityTrend.reduce((s, n) => s + n, 0).toLocaleString()} records</p>
                 <p className="text-sm opacity-80 mt-0.5">processed across all campaigns</p>
               </div>
-              <Sparkles size={20} className="opacity-60" />
+              <Sparkles size={20} className="opacity-70" />
             </div>
 
             <div className="my-4">
-              <SparkLine
-                values={activityTrend}
-                width={520}
-                height={64}
-                stroke="white"
-                fill="rgba(255,255,255,0.18)"
-              />
+              <SparkLine values={activityTrend} width={520} height={64} stroke="white" fill="rgba(255,255,255,0.22)" />
             </div>
 
             <AIInsight />
           </div>
         </div>
 
-        {/* Live message feed */}
+        {/* Live message feed — always present */}
         <LiveMessageFeed heading="Live Conversations" />
       </div>
 
       {/* Hot replies + new leads */}
       <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white border border-zinc-200 rounded-2xl p-5 animate-fade-up">
+        <GlassCard>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
               <MessageSquare size={15} className="text-emerald-500" />
@@ -182,34 +187,32 @@ export default function DashboardPage() {
               Inbox →
             </Link>
           </div>
-          {threads.filter((t) => t.has_unread_reply).length === 0 ? (
+          {hotThreads.length === 0 ? (
             <p className="text-sm text-zinc-400 py-6 text-center">
               No new replies. Your AI agent is on it.
             </p>
           ) : (
             <div className="space-y-2 stagger-children">
-              {threads.filter((t) => t.has_unread_reply).slice(0, 4).map((t) => (
+              {hotThreads.map((t) => (
                 <Link
                   key={t.lead_id}
-                  href={`/leads/${t.lead_id}`}
-                  className="block bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-100 rounded-lg p-3 transition-all hover:translate-x-0.5"
+                  href={isDemo ? "/inbox" : `/leads/${t.lead_id}`}
+                  className="block bg-emerald-50/60 hover:bg-emerald-50 border border-emerald-100 rounded-lg p-3 transition-all hover:translate-x-0.5"
                 >
                   <div className="flex items-start gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 animate-pulse" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm text-zinc-900 truncate">
-                        {t.owner_name ?? "Unknown owner"}
-                      </p>
-                      <p className="text-xs text-zinc-600 line-clamp-2 mt-0.5">{t.last_body}</p>
+                      <p className="font-semibold text-sm text-zinc-900 truncate">{t.owner}</p>
+                      <p className="text-xs text-zinc-600 line-clamp-2 mt-0.5">{t.body}</p>
                     </div>
                   </div>
                 </Link>
               ))}
             </div>
           )}
-        </div>
+        </GlassCard>
 
-        <div className="bg-white border border-zinc-200 rounded-2xl p-5 animate-fade-up">
+        <GlassCard>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
               <Users size={15} className="text-blue-500" />
@@ -226,15 +229,18 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-2 stagger-children">
               {recentLeads.map((lead) => {
-                const c = enrichedById.get(lead.id);
-                const rec = lead.pipeline_recommendation
-                  ? PIPELINE_REC_STYLE[lead.pipeline_recommendation]
-                  : null;
+                const isDemoLead = "rec" in lead;
+                const rec = isDemoLead
+                  ? PIPELINE_REC_STYLE[(lead as { rec: "pursue" | "needs_review" }).rec]
+                  : (lead as Lead).pipeline_recommendation
+                    ? PIPELINE_REC_STYLE[(lead as Lead).pipeline_recommendation!]
+                    : null;
+                const phone = isDemoLead ? (lead as { phone: string }).phone : enrichedById.get((lead as Lead).id)?.phones?.[0];
                 return (
                   <Link
                     key={lead.id}
-                    href={`/leads/${lead.id}`}
-                    className="block hover:bg-zinc-50 rounded-lg p-2.5 transition-all hover:translate-x-0.5"
+                    href={isDemoLead ? "/leads" : `/leads/${(lead as Lead).id}`}
+                    className="block hover:bg-zinc-50/70 rounded-lg p-2.5 transition-all hover:translate-x-0.5"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -242,18 +248,18 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 text-[11px] text-zinc-500 mt-0.5">
                           <MapPin size={9} />
                           <span>{lead.city}, {lead.state}</span>
-                          {c && c.phones.length > 0 && (
+                          {phone && (
                             <>
                               <span className="text-zinc-300">·</span>
                               <Phone size={9} />
-                              <span className="text-blue-600 font-medium">{c.phones[0]}</span>
+                              <span className="text-blue-600 font-medium">{phone}</span>
                             </>
                           )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        {lead.offer_price && (
-                          <p className="text-sm font-bold text-emerald-700">{fmt$$(lead.offer_price)}</p>
+                        {(lead as { offer_price?: number }).offer_price && (
+                          <p className="text-sm font-bold text-emerald-700">{fmt$$((lead as { offer_price: number }).offer_price)}</p>
                         )}
                         {rec && (
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${rec.className}`}>
@@ -267,8 +273,36 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-        </div>
+        </GlassCard>
       </div>
+
+      {isDemo && (
+        <div className="mt-6 bg-gradient-to-br from-blue-50/80 to-emerald-50/80 backdrop-blur-sm border border-blue-200/60 rounded-2xl p-5 flex items-center justify-between animate-fade-up">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <Sparkles size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-zinc-900">This is a preview with sample data</p>
+              <p className="text-xs text-zinc-600 mt-0.5">Run your first campaign to see real leads from your county.</p>
+            </div>
+          </div>
+          <Link
+            href="/pipeline"
+            className="bg-gradient-to-br from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg hover:scale-[1.02] flex items-center gap-2"
+          >
+            <Play size={13} /> Run Real Campaign
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GlassCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-5 shadow-sm animate-fade-up">
+      {children}
     </div>
   );
 }
@@ -287,10 +321,10 @@ function KPI({
   return (
     <Link
       href={href}
-      className={`group relative bg-white border rounded-xl p-5 transition-all hover:-translate-y-0.5 ${
+      className={`group relative bg-white/70 backdrop-blur-md border rounded-xl p-5 transition-all hover:-translate-y-0.5 ${
         highlight
-          ? "border-emerald-300 ring-1 ring-emerald-200 hover:ring-2 hover:shadow-lg hover:shadow-emerald-500/10"
-          : "border-zinc-200 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/10"
+          ? "border-emerald-300/80 ring-1 ring-emerald-200/60 hover:ring-2 hover:shadow-xl hover:shadow-emerald-500/15"
+          : "border-white/60 hover:border-blue-300/80 hover:shadow-xl hover:shadow-blue-500/15"
       }`}
     >
       <div className="flex items-center gap-2 mb-2">
@@ -299,52 +333,7 @@ function KPI({
       </div>
       <p className={`text-3xl font-bold ${accent}`}>{value}</p>
       {subtitle && <p className="text-[11px] text-zinc-400 mt-1">{subtitle}</p>}
-      <ArrowRight
-        size={14}
-        className="absolute top-5 right-5 text-zinc-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all"
-      />
+      <ArrowRight size={14} className="absolute top-5 right-5 text-zinc-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
     </Link>
-  );
-}
-
-function FirstRunHero() {
-  return (
-    <div className="p-8 max-w-3xl mx-auto animate-fade-in">
-      <div className="relative overflow-hidden rounded-3xl text-white mb-6 shadow-xl shadow-blue-500/30">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-emerald-600 animate-gradient" />
-        <div className="relative p-10">
-          <Sparkles size={28} className="mb-4 opacity-90" />
-          <h1 className="text-3xl font-bold mb-2">Welcome to Acquire</h1>
-          <p className="text-blue-50 max-w-md mb-6">
-            Tell us your buy box and we&apos;ll find off-market deals automatically — county records,
-            skip-traced phone numbers, ARV-based offers, and AI-driven SMS negotiation.
-          </p>
-          <Link
-            href="/pipeline"
-            className="inline-flex items-center gap-2 bg-white hover:bg-blue-50 text-blue-700 text-sm font-semibold px-5 py-3 rounded-xl transition-all hover:scale-[1.02]"
-          >
-            <Play size={14} /> Run your first campaign
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 stagger-children">
-        <HowStep num={1} title="Define your buy box" body="City, county, price range, beds, property types. Takes 30 seconds." />
-        <HowStep num={2} title="Let the agent run" body="Scrape records → skip trace → calculate offers → start outreach." />
-        <HowStep num={3} title="Reply or close deals" body="Owners reply by SMS. AI negotiates. You sign contracts." />
-      </div>
-    </div>
-  );
-}
-
-function HowStep({ num, title, body }: { num: number; title: string; body: string }) {
-  return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
-      <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-emerald-500 text-white font-bold rounded-full flex items-center justify-center text-sm mb-3">
-        {num}
-      </div>
-      <p className="font-semibold text-zinc-900 mb-1">{title}</p>
-      <p className="text-xs text-zinc-500 leading-relaxed">{body}</p>
-    </div>
   );
 }

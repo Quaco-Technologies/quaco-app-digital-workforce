@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Campaign } from "@/lib/types";
 import { fmt$$, fmtDate } from "@/lib/utils";
 import Link from "next/link";
-import { MapPin, Users, CheckCircle, Loader2, Play } from "lucide-react";
+import { MapPin, Users, CheckCircle, Loader2, Play, Folder } from "lucide-react";
 
 function fmtPrice(min: number | null, max: number | null) {
   if (!min && !max) return null;
@@ -49,11 +49,25 @@ export default function CampaignsPage() {
           <Loader2 size={20} className="text-zinc-300 animate-spin mx-auto" />
         </div>
       ) : campaigns.length === 0 ? (
-        <div className="py-20 text-center">
-          <p className="text-sm text-zinc-400">No campaigns yet.</p>
-          <Link href="/pipeline" className="text-sm text-blue-600 hover:text-blue-700 mt-1 inline-block">
-            Run your first pipeline →
-          </Link>
+        <div className="relative overflow-hidden rounded-3xl text-white shadow-xl shadow-blue-500/25">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-emerald-600 animate-gradient" />
+          <div className="absolute inset-0 opacity-30 pointer-events-none">
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/40 blur-3xl rounded-full" />
+            <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-emerald-300/40 blur-3xl rounded-full" />
+          </div>
+          <div className="relative p-10 text-center">
+            <Folder size={32} className="mx-auto mb-3 opacity-90" />
+            <p className="font-semibold text-lg">No campaigns yet</p>
+            <p className="text-sm opacity-90 mt-1 max-w-sm mx-auto">
+              A campaign is a single pipeline run on one county. Set up your buy box and we&apos;ll do the rest.
+            </p>
+            <Link
+              href="/pipeline"
+              className="inline-flex items-center gap-2 mt-5 bg-white hover:bg-blue-50 text-blue-700 font-semibold text-sm px-5 py-2.5 rounded-xl transition-all hover:scale-[1.02]"
+            >
+              <Play size={13} fill="currentColor" /> Run your first pipeline
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -61,7 +75,7 @@ export default function CampaignsPage() {
             <Link
               key={c.id}
               href={`/campaigns/${c.id}`}
-              className="block bg-white border border-zinc-200 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-sm transition-all"
+              className="block bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-sm transition-all"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">

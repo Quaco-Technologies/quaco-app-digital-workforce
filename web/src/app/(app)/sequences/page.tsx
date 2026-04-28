@@ -139,7 +139,7 @@ export default function SequencesPage() {
         ))}
 
         {sequences.length === 0 && (
-          <div className="bg-white border border-zinc-200 rounded-xl p-10 text-center">
+          <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-10 text-center">
             <Repeat size={28} className="mx-auto text-zinc-300 mb-3" />
             <p className="font-medium text-zinc-700">No sequences yet</p>
             <p className="text-sm text-zinc-500 mt-1 mb-4">

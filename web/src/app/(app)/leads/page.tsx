@@ -158,14 +158,30 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl overflow-hidden">
         {loading ? (
           <div className="py-16 text-center text-sm text-zinc-400">Loading…</div>
         ) : visible.length === 0 ? (
-          <div className="py-16 text-center text-sm text-zinc-400">
-            {actionable.length === 0
-              ? "No qualified leads yet. Run a pipeline to find off-market properties."
-              : "No leads match the current filter."}
+          <div className="py-20 text-center px-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <Search size={26} className="text-white" />
+            </div>
+            <p className="font-semibold text-zinc-800 mb-1">
+              {actionable.length === 0 ? "No qualified leads yet" : "No leads match this filter"}
+            </p>
+            <p className="text-sm text-zinc-500 max-w-sm mx-auto mb-5">
+              {actionable.length === 0
+                ? "Run a pipeline on a county and we'll surface off-market owners with phone numbers and offer prices."
+                : "Try clearing the search or switching tabs."}
+            </p>
+            {actionable.length === 0 && (
+              <Link
+                href="/pipeline"
+                className="inline-flex items-center gap-2 bg-gradient-to-br from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg hover:scale-[1.02]"
+              >
+                Run your first pipeline →
+              </Link>
+            )}
           </div>
         ) : (
           <table className="w-full text-sm">

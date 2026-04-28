@@ -189,15 +189,44 @@ export default function PipelinePage() {
   const inputClass  = "w-full px-3 py-2.5 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelClass  = "block text-xs font-medium text-zinc-500 mb-1.5";
 
-  // ── IDLE: buy-box form ─────────────────────────────────────────────────────
+  // ── IDLE: buy-box form + always-visible stage preview ─────────────────────
   if (run.phase === "idle") {
     return (
-      <div className="p-8 max-w-xl mx-auto">
-        <div className="mb-8">
+      <div className="p-8 max-w-5xl mx-auto animate-fade-in">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-zinc-900">Run Pipeline</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Enter a county and your buy box — Acquire finds properties, skip traces owners, and calculates offers automatically.
+            Enter a county and your buy box — Acquire runs the 5-stage pipeline below automatically.
           </p>
+        </div>
+
+        {/* Always-visible stage preview */}
+        <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-6 mb-6 shadow-sm animate-fade-up">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-md shadow-blue-500/25">
+              <Zap size={13} className="text-white" />
+            </div>
+            <h2 className="text-sm font-semibold text-zinc-900">What runs when you click Find Deals</h2>
+          </div>
+          <div className="grid grid-cols-5 gap-2 relative">
+            {/* Connecting line */}
+            <div className="absolute top-6 left-[10%] right-[10%] h-px bg-gradient-to-r from-blue-200 via-cyan-200 to-emerald-200 -z-0" />
+            {PIPELINE_STEPS.map((step, i) => {
+              const Icon = step.icon;
+              return (
+                <div key={i} className="relative z-10 flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-white to-blue-50 border border-blue-100 flex items-center justify-center shadow-sm mb-2">
+                    <Icon size={18} className="text-blue-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-800 leading-tight">{step.label}</p>
+                  <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed">{step.detail}</p>
+                  <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-blue-100 text-blue-700 rounded-full w-4 h-4 flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <form onSubmit={submit} className="space-y-5">

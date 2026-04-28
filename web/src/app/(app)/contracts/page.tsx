@@ -64,7 +64,7 @@ export default function ContractsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl overflow-hidden">
         {visible.length === 0 ? (
           <div className="py-16 text-center text-sm text-zinc-400">
             No contracts in this view yet.
@@ -145,7 +145,7 @@ export default function ContractsPage() {
 
 function Stat({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-5">
+    <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-5">
       <p className="text-[11px] text-zinc-400 font-medium uppercase tracking-wide mb-2">{label}</p>
       <p className={`text-2xl font-bold ${accent}`}>{value}</p>
     </div>

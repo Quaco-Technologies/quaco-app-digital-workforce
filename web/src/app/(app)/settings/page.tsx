@@ -59,7 +59,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Profile */}
-      <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-4">
+      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-6 mb-4">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
             <UserIcon size={22} className="text-blue-600" />
@@ -105,7 +105,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Account info */}
-      <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-4">
+      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-6 mb-4">
         <h2 className="text-sm font-semibold text-zinc-900 mb-4">Account</h2>
         <div className="space-y-3 text-sm">
           <div className="flex justify-between">
@@ -130,7 +130,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Sign out */}
-      <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-6">
         <h2 className="text-sm font-semibold text-zinc-900 mb-1">Sign Out</h2>
         <p className="text-xs text-zinc-400 mb-4">You&apos;ll be redirected to the login page.</p>
         <button

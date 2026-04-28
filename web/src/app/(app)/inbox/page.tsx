@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { InboxThread } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Inbox as InboxIcon, MessageSquare } from "lucide-react";
+import { Inbox as InboxIcon, MessageSquare, Play } from "lucide-react";
 import { LiveDot } from "@/components/LiveDot";
 import { LiveMessageFeed } from "@/components/LiveMessageFeed";
 
@@ -53,7 +53,7 @@ export default function InboxPage() {
         {/* Thread list */}
         <div className="col-span-2">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4">
+            <div className="bg-red-50/80 backdrop-blur-md border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4">
               Couldn&apos;t load inbox: {error}
             </div>
           )}
@@ -63,12 +63,25 @@ export default function InboxPage() {
           )}
 
           {!error && threads && threads.length === 0 && (
-            <div className="bg-white border border-zinc-200 rounded-xl p-10 text-center">
-              <MessageSquare size={28} className="mx-auto text-zinc-300 mb-3" />
-              <p className="font-medium text-zinc-700">No conversations yet</p>
-              <p className="text-sm text-zinc-500 mt-1">
-                Once outreach goes out and an owner replies, threads will land here.
-              </p>
+            <div className="relative overflow-hidden rounded-2xl shadow-xl shadow-blue-500/20">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-emerald-600 animate-gradient" />
+              <div className="absolute inset-0 opacity-30 pointer-events-none">
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/40 blur-3xl rounded-full" />
+                <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-emerald-300/40 blur-3xl rounded-full" />
+              </div>
+              <div className="relative p-10 text-white text-center">
+                <MessageSquare size={32} className="mx-auto mb-3 opacity-90" />
+                <p className="font-semibold text-lg">No conversations yet</p>
+                <p className="text-sm opacity-90 mt-1 max-w-sm mx-auto">
+                  Run a campaign and start outreach — owner replies will land here in real time.
+                </p>
+                <Link
+                  href="/pipeline"
+                  className="inline-flex items-center gap-2 mt-5 bg-white hover:bg-blue-50 text-blue-700 font-semibold text-sm px-5 py-2.5 rounded-xl transition-all hover:scale-[1.02]"
+                >
+                  <Play size={13} fill="currentColor" /> Run a Campaign
+                </Link>
+              </div>
             </div>
           )}
 
