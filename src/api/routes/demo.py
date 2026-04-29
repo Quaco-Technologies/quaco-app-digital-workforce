@@ -204,6 +204,7 @@ def get_demo(demo_id: str) -> DemoState:
 
 class StartNegotiationRequest(BaseModel):
     recipient_phone: Optional[str] = None
+    additional_phones: Optional[list[str]] = None
     owner_name: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
@@ -218,6 +219,7 @@ class StartNegotiationResponse(BaseModel):
     sent: bool
     opening_message: str
     error: Optional[str] = None
+    additional_lead_ids: Optional[list[str]] = None
 
 
 @router.post("/negotiate", response_model=StartNegotiationResponse)
@@ -233,12 +235,6 @@ def start_real_negotiation(
             status_code=400,
             detail="No recipient phone — pass `recipient_phone` or set TELENYX_TEST_RECIPIENT",
         )
-    if not settings.telenyx_api_key or not settings.telenyx_from_number:
-        raise HTTPException(
-            status_code=400,
-            detail="Telenyx not configured — TELENYX_API_KEY / TELENYX_FROM_NUMBER must be set",
-        )
-
     address = req.address or "3857 N High St"
     city = req.city or "Atlanta"
     state = req.state or "GA"
@@ -301,6 +297,29 @@ def start_real_negotiation(
             error=result["error"],
         )
 
+    # 4. Optionally fan out to additional phones — each gets its own lead
+    additional_lead_ids: list[str] = []
+    for extra in (req.additional_phones or []):
+        extra = (extra or "").strip()
+        if not extra or extra == phone:
+            continue
+        try:
+            extra_source = f"demo_{uuid4().hex[:8]}"
+            extra_lead = lead.model_copy(update={"source": extra_source})
+            extra_row = extra_lead.model_dump(mode="json", exclude_none=True, exclude={"id", "created_at", "updated_at"})
+            extra_res = repos.db.table("leads").insert(extra_row).execute()
+            if extra_res.data:
+                xid = UUID(extra_res.data[0]["id"])
+                repos.contacts.upsert(Contact(
+                    lead_id=xid,
+                    owner_name=req.owner_name or "Maria Hernandez",
+                    phones=[extra], emails=[], confidence=0.95,
+                ))
+                negotiation.start_outreach(xid, repos)
+                additional_lead_ids.append(str(xid))
+        except Exception as exc:
+            logger.warning("demo.fanout_failed", phone=extra, error=str(exc)[:160])
+
     sms_error = result.get("sms_error")
     return StartNegotiationResponse(
         lead_id=str(lead_id),
@@ -308,6 +327,7 @@ def start_real_negotiation(
         sent=bool(result.get("sent")),
         opening_message=result.get("sms", ""),
         error=sms_error,
+        additional_lead_ids=additional_lead_ids or None,
     )
 
 
@@ -322,10 +342,18 @@ class ConversationResponse(BaseModel):
     status: str
     agreed_price: Optional[int] = None
     messages: list[ConversationMessage]
+    contract_email_sent_to: Optional[str] = None
+    contract_email_delivered: bool = False
+    contract_url: Optional[str] = None
 
 
 class SimulateReplyRequest(BaseModel):
     body: str
+
+
+# In-memory cache of email-send state per lead (the messages table doesn't
+# track this and adding a column means a migration the user has to run)
+_LEAD_EMAIL_STATE: dict[str, dict] = {}
 
 
 @router.post("/conversation/{lead_id}/simulate_reply", response_model=ConversationResponse)
@@ -340,7 +368,14 @@ def simulate_owner_reply(
     if not req.body.strip():
         raise HTTPException(status_code=400, detail="empty body")
     try:
-        negotiation.handle_reply(lead_id, req.body.strip(), repos)
+        result = negotiation.handle_reply(lead_id, req.body.strip(), repos)
+        if result.get("email_to"):
+            _LEAD_EMAIL_STATE[str(lead_id)] = {
+                "to": result["email_to"],
+                "delivered": bool(result.get("email_sent")),
+                "url": result.get("contract_url"),
+                "error": result.get("email_error"),
+            }
     except Exception as exc:
         logger.warning("demo.simulate_reply.error", lead_id=str(lead_id), error=str(exc)[:200])
     return get_conversation(lead_id, repos)
@@ -357,6 +392,7 @@ def get_conversation(
         raise HTTPException(status_code=404, detail="Lead not found")
 
     messages = repos.messages.get_conversation(lead_id)
+    email_state = _LEAD_EMAIL_STATE.get(str(lead_id), {})
     return ConversationResponse(
         lead_id=str(lead_id),
         status=lead.status.value if hasattr(lead.status, "value") else str(lead.status),
@@ -369,4 +405,7 @@ def get_conversation(
             )
             for m in messages
         ],
+        contract_email_sent_to=email_state.get("to"),
+        contract_email_delivered=bool(email_state.get("delivered")),
+        contract_url=email_state.get("url"),
     )

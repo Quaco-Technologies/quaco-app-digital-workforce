@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { fmt$$, fmtDate } from "@/lib/utils";
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { LiveDot } from "@/components/LiveDot";
 import { CountUp } from "@/components/CountUp";
+import { PipelineStages } from "@/components/PipelineStages";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
 interface ConvMsg {
@@ -87,13 +88,17 @@ export default function MissionControlPage() {
     min_price: 100_000, max_price: 400_000, min_beds: 2,
     property_types: ["single_family"] as string[],
     notify_phone: "",
+    extra_phones: [] as string[],
   });
 
+  const [phase, setPhase] = useState<"idle" | "stages" | "negotiating">("idle");
   const [leadId, setLeadId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConvMsg[]>([]);
   const [negotiationStatus, setNegotiationStatus] = useState<string>("idle");
   const [agreedPrice, setAgreedPrice] = useState<number | null>(null);
   const [recipientPhone, setRecipientPhone] = useState<string>("");
+  const [contractEmail, setContractEmail] = useState<string | null>(null);
+  const [contractDelivered, setContractDelivered] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>(IDLE_METRICS);
@@ -124,24 +129,33 @@ export default function MissionControlPage() {
     setError(null);
     setLeadId(null);
     setConversation([]);
+    setContractEmail(null);
+    setContractDelivered(false);
     setNegotiationStatus("scraping");
     setAgreedPrice(null);
     startedAtRef.current = Date.now() / 1000;
-    setMetrics(DEMO_BASELINE.map((m) => ({ ...m, value: Math.round(m.value * 0.6) })));
+    setMetrics(IDLE_METRICS);
+    setPhase("stages");
 
-    // Tick metrics with growth so the dashboard feels alive while we wait for SMS
+    // Tick metrics with growth so they ramp up during the staged animation
     tickRef.current = setInterval(() => {
       setMetrics((prev) => prev.map((m) => {
         const target = DEMO_BASELINE.find((d) => d.key === m.key)?.value ?? m.value;
         if (m.value >= target) return m;
-        const inc = Math.max(1, Math.ceil((target - m.value) * 0.04));
+        const inc = Math.max(1, Math.ceil((target - m.value) * 0.05));
         return { ...m, value: Math.min(target, m.value + Math.ceil(Math.random() * inc)) };
       }));
-    }, 350);
+    }, 280);
 
+    setStarting(false);
+  };
+
+  const fireNegotiation = useCallback(async () => {
+    setPhase("negotiating");
     try {
       const res = await api.demo.negotiate({
         recipient_phone: form.notify_phone.trim() || undefined,
+        additional_phones: form.extra_phones.length > 0 ? form.extra_phones : undefined,
         owner_name: "Maria Hernandez",
         address: `${form.city || "Atlanta"} demo property`,
         city: form.city || "Atlanta",
@@ -160,16 +174,18 @@ export default function MissionControlPage() {
         setError(res.error);
       }
 
-      // Poll the live conversation every 2s — picks up owner replies +
-      // AI counter-texts as they happen
+      // Poll the live conversation every 2s
       pollRef.current = setInterval(async () => {
         try {
           const c = await api.demo.conversation(res.lead_id);
           setConversation(c.messages);
           setNegotiationStatus(c.status);
           if (c.agreed_price) setAgreedPrice(c.agreed_price);
+          if (c.contract_email_sent_to) {
+            setContractEmail(c.contract_email_sent_to);
+            setContractDelivered(c.contract_email_delivered);
+          }
 
-          // Once a deal is agreed, drop a contract into the list and stop polling
           if (c.status === "negotiating" && c.agreed_price !== null) {
             const agreed = c.agreed_price;
             setContracts((prev) => {
@@ -191,21 +207,20 @@ export default function MissionControlPage() {
             });
           }
           if (c.status === "dead") stop();
-        } catch (e) {
-          // Keep polling — transient errors shouldn't kill the live view
+        } catch {
+          /* keep polling */
         }
       }, 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       stop();
-    } finally {
-      setStarting(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.notify_phone, form.extra_phones, form.city, form.state, form.min_price, form.max_price]);
 
-  const isRunning = !!leadId && negotiationStatus !== "dead" && !agreedPrice;
+  const isRunning = phase !== "idle" && (!agreedPrice || !contractDelivered);
   const isComplete = !!agreedPrice;
-  const elapsed = leadId ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
+  const elapsed = phase !== "idle" ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
@@ -248,13 +263,17 @@ export default function MissionControlPage() {
         {/* ── LIVE UPDATES (center on desktop, middle on mobile) ── */}
         <div className="lg:col-span-6 order-2">
           <LiveUpdatesCard
+            phase={phase}
             metrics={metrics}
             isRunning={!!isRunning}
             isComplete={!!isComplete}
             conversation={conversation}
             recipientPhone={recipientPhone}
             agreedPrice={agreedPrice}
+            contractEmail={contractEmail}
+            contractDelivered={contractDelivered}
             leadId={leadId}
+            onStagesComplete={fireNegotiation}
             onSimulateReply={async (body) => {
               if (!leadId) return;
               try {
@@ -262,8 +281,12 @@ export default function MissionControlPage() {
                 setConversation(c.messages);
                 setNegotiationStatus(c.status);
                 if (c.agreed_price) setAgreedPrice(c.agreed_price);
+                if (c.contract_email_sent_to) {
+                  setContractEmail(c.contract_email_sent_to);
+                  setContractDelivered(c.contract_email_delivered);
+                }
               } catch {
-                /* swallow — poll will catch any state changes */
+                /* swallow — poll will catch state changes */
               }
             }}
           />
@@ -282,7 +305,7 @@ export default function MissionControlPage() {
 function BuyBoxCard({
   form, set, toggleType, startDemo, starting, isRunning, error,
 }: {
-  form: { city: string; state: string; county: string; min_price: number; max_price: number; min_beds: number; property_types: string[]; notify_phone: string };
+  form: { city: string; state: string; county: string; min_price: number; max_price: number; min_beds: number; property_types: string[]; notify_phone: string; extra_phones: string[] };
   set: (key: string, value: unknown) => void;
   toggleType: (t: string) => void;
   startDemo: () => void;
@@ -290,6 +313,15 @@ function BuyBoxCard({
   isRunning: boolean;
   error: string | null;
 }) {
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const addPhone = () => {
+    const p = phoneDraft.trim();
+    if (!p) return;
+    if (form.extra_phones.includes(p)) { setPhoneDraft(""); return; }
+    set("extra_phones", [...form.extra_phones, p]);
+    setPhoneDraft("");
+  };
+  const removePhone = (p: string) => set("extra_phones", form.extra_phones.filter((x) => x !== p));
   const inputClass = "w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400";
   const labelClass = "block text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1";
 
@@ -371,7 +403,7 @@ function BuyBoxCard({
         </div>
 
         <div className="pt-2 border-t border-zinc-100">
-          <label className={labelClass}>Notify me at (SMS)</label>
+          <label className={labelClass}>Primary phone (gets the texts)</label>
           <input
             type="tel"
             value={form.notify_phone}
@@ -379,6 +411,39 @@ function BuyBoxCard({
             placeholder="+1 555 123 4567 (or use default)"
             className={inputClass}
           />
+        </div>
+
+        <div>
+          <label className={labelClass}>Also text these numbers</label>
+          <div className="flex gap-1.5 mb-2">
+            <input
+              type="tel"
+              value={phoneDraft}
+              onChange={(e) => setPhoneDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhone(); } }}
+              placeholder="+1 555 ..."
+              className={inputClass}
+            />
+            <button
+              type="button"
+              onClick={addPhone}
+              disabled={!phoneDraft.trim()}
+              className="px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+            >
+              Add
+            </button>
+          </div>
+          {form.extra_phones.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {form.extra_phones.map((p) => (
+                <span key={p} className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-md">
+                  {p}
+                  <button onClick={() => removePhone(p)} className="hover:text-red-600">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-zinc-400 mt-1">Each gets its own AI conversation in parallel.</p>
         </div>
       </div>
 
@@ -408,17 +473,22 @@ const SUGGESTED_REPLIES = [
 ];
 
 function LiveUpdatesCard({
-  metrics, isRunning, isComplete, conversation, recipientPhone, agreedPrice,
-  onSimulateReply, leadId,
+  phase, metrics, isRunning, isComplete, conversation, recipientPhone,
+  agreedPrice, contractEmail, contractDelivered, leadId,
+  onStagesComplete, onSimulateReply,
 }: {
+  phase: "idle" | "stages" | "negotiating";
   metrics: Metric[];
   isRunning: boolean;
   isComplete: boolean;
   conversation: ConvMsg[];
   recipientPhone: string;
   agreedPrice: number | null;
-  onSimulateReply: (body: string) => void;
+  contractEmail: string | null;
+  contractDelivered: boolean;
   leadId: string | null;
+  onStagesComplete: () => void;
+  onSimulateReply: (body: string) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -460,13 +530,20 @@ function LiveUpdatesCard({
           {metrics.map((m) => <MetricChip key={m.key} m={m} live={isRunning} />)}
         </div>
 
-        {/* Live AI ↔ Owner conversation */}
+        {/* Phase: stages animation */}
+        {phase === "stages" && (
+          <div className="bg-black/25 backdrop-blur-md rounded-xl p-4 border border-white/30 mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider opacity-90 mb-3">Running pipeline</p>
+            <PipelineStages onComplete={onStagesComplete} />
+          </div>
+        )}
+
+        {/* Phase: conversation */}
+        {phase === "negotiating" && (
         <div className="flex-1 min-h-0">
           {conversation.length === 0 ? (
             <div className="bg-black/25 backdrop-blur-md rounded-xl p-4 border border-white/30 text-center">
-              <p className="text-xs">
-                {isRunning ? "Waiting for AI agent to send opening text…" : "Click Start Pipeline to fire the negotiation bot"}
-              </p>
+              <p className="text-xs">Waiting for AI agent to send opening text…</p>
             </div>
           ) : (
             <div className="bg-black/25 backdrop-blur-md rounded-xl p-3 border border-white/30 flex flex-col">
@@ -550,6 +627,34 @@ function LiveUpdatesCard({
             </div>
           )}
         </div>
+        )}
+
+        {/* Idle state */}
+        {phase === "idle" && (
+          <div className="bg-black/25 backdrop-blur-md rounded-xl p-4 border border-white/30 text-center">
+            <p className="text-xs opacity-90">Click Start Pipeline to fire the negotiation bot</p>
+          </div>
+        )}
+
+        {/* Contract-sent banner */}
+        {contractEmail && (
+          <div className="mt-3 bg-emerald-500/30 backdrop-blur-md border border-emerald-300/60 rounded-xl p-3 animate-fade-up">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-400 flex items-center justify-center">
+                <span className="text-white text-base">📧</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white">
+                  {contractDelivered ? "Contract emailed" : "Contract queued"}
+                </p>
+                <p className="text-xs text-white truncate">{contractEmail}</p>
+              </div>
+              {contractDelivered && (
+                <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded">✓ SENT</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

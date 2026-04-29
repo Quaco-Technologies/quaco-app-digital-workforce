@@ -3,14 +3,19 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+import re
+
 from openai import OpenAI
+
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.models.lead import LeadStatus
 from src.models.message import MessageRole
 from src.repositories import Repositories
-from src.tools.telenyx_tools import send_sms
+from src.tools.email_tools import render_contract_email, send_email
+from src.tools.sms_router import send_sms
 
 logger = get_logger(__name__)
 
@@ -25,28 +30,37 @@ def _get_client() -> OpenAI:
 
 _SYSTEM = """You are an expert real estate acquisitions specialist conducting SMS negotiation
 on behalf of a local investor. Your goal: build rapport, understand the seller's situation,
-and reach a purchase price at or below max_offer.
+reach a purchase price at or below max_offer, and collect the seller's email so we can send
+the contract.
 
 Rules:
 - Keep messages 2-4 sentences max. This is SMS — not email, not a letter.
 - Never reveal you are an AI.
 - Warm, direct, professional tone. Use the seller's first name.
 - Never go above max_offer under any circumstances.
+- Move quickly — sellers are busy. Don't ask 3 discovery questions in one text.
 
 Strategy:
 1. Opening: introduce yourself as a local investor, express genuine interest, ask if they'd
    consider a cash offer.
-2. Discovery: ask about their timeline, reason for selling, any repairs needed.
+2. Discovery (1 short message): ask their timeline / situation.
 3. Offer: present initial_offer as a cash, as-is, quick-close number.
-4. Counter: if rejected, ask what works for them. Move in 5-10% increments.
-5. Agreement: once seller accepts, confirm the price clearly and say you'll send paperwork.
-6. If uninterested after 2 follow-up attempts: signal DEAD_LEAD.
+4. Counter: if rejected, move in 5-10% increments toward max_offer.
+5. Agreement: once seller accepts, confirm the price AND ask for their email so you can
+   send the contract — e.g. "Awesome — what's the best email to send the contract to?"
+6. Email collected: thank them, confirm you're sending it now.
+7. If uninterested after 2 follow-ups: signal DEAD_LEAD.
 
-When the negotiation concludes include ONE of these signals on its own line at the end:
+When the seller sends you an email address, include this signal on its own line:
+  EMAIL_COLLECTED:<email>
+
+When you reach a price agreement, include this signal on its own line:
   DEAL_AGREED:$<price>
+
+If dead, include:
   DEAD_LEAD
 
-Output ONLY the SMS text (and the signal line if applicable). No preamble, no commentary."""
+Output ONLY the SMS text plus any signal line(s). No preamble, no commentary."""
 
 
 def _build_context(lead: Any, contact: Any) -> str:
@@ -76,6 +90,7 @@ def _build_messages(lead: Any, contact: Any, history: List[Any]) -> List[Dict[st
 def _parse_response(text: str) -> Dict[str, Any]:
     agreed_price = None
     is_dead = False
+    email = None
     sms_lines = []
 
     for line in text.splitlines():
@@ -85,6 +100,8 @@ def _parse_response(text: str) -> Dict[str, Any]:
                 agreed_price = int(s.split("$")[1].replace(",", ""))
             except (IndexError, ValueError):
                 pass
+        elif s.startswith("EMAIL_COLLECTED:"):
+            email = s.split(":", 1)[1].strip()
         elif s == "DEAD_LEAD":
             is_dead = True
         else:
@@ -94,6 +111,7 @@ def _parse_response(text: str) -> Dict[str, Any]:
         "sms": "\n".join(sms_lines).strip(),
         "agreed_price": agreed_price,
         "is_dead": is_dead,
+        "email": email,
     }
 
 
@@ -159,13 +177,60 @@ def handle_reply(lead_id: UUID, inbound_body: str, repos: Repositories) -> Dict[
         except Exception as exc:
             logger.warning("reply.sms_failed", lead_id=str(lead_id), error=str(exc)[:200])
 
+    # Side effect: if the AI signaled a collected email AND we already know
+    # the agreed price, fire off the contract email immediately so the demo
+    # closes the loop for investors watching.
+    email_status = None
+    contract_url = None
+    target_email = parsed["email"]
+    if not target_email:
+        # Heuristic: pull email from the inbound text if AI missed it
+        m = _EMAIL_RE.search(inbound_body or "")
+        if m:
+            target_email = m.group(0)
+
+    if target_email and (parsed["agreed_price"] or lead.agreed_price):
+        agreed = parsed["agreed_price"] or lead.agreed_price or 0
+        contract_url = f"https://birddogs.app/c/{lead_id}"
+        subject, html = render_contract_email(
+            owner_name=contact.owner_name or "there",
+            address=lead.address,
+            agreed_price=agreed,
+            contract_url=contract_url,
+        )
+        email_status = send_email(target_email, subject, html)
+        logger.info("contract.email_sent",
+                    lead_id=str(lead_id),
+                    to=target_email,
+                    delivered=email_status["delivered"])
+
     if parsed["agreed_price"]:
         repos.leads.update_status(lead_id, LeadStatus.NEGOTIATING, agreed_price=parsed["agreed_price"])
-        return {"sms_sent": sms_text, "status": "deal_agreed", "agreed_price": parsed["agreed_price"]}
+        return {
+            "sms_sent": sms_text,
+            "status": "deal_agreed",
+            "agreed_price": parsed["agreed_price"],
+            "email_to": target_email,
+            "email_sent": bool(email_status and email_status["delivered"]),
+            "email_error": email_status["error"] if email_status else None,
+            "contract_url": contract_url,
+        }
 
     if parsed["is_dead"]:
         repos.leads.update_status(lead_id, LeadStatus.DEAD)
         return {"sms_sent": sms_text, "status": "dead_lead"}
+
+    if target_email and email_status:
+        # Email received before price — still record + proceed
+        repos.leads.update_status(lead_id, LeadStatus.NEGOTIATING)
+        return {
+            "sms_sent": sms_text,
+            "status": "negotiating",
+            "email_to": target_email,
+            "email_sent": email_status["delivered"],
+            "email_error": email_status["error"],
+            "contract_url": contract_url,
+        }
 
     repos.leads.update_status(lead_id, LeadStatus.NEGOTIATING)
     return {"sms_sent": sms_text, "status": "negotiating"}

@@ -124,12 +124,13 @@ export const api = {
       }),
     status: (demoId: string) => request<DemoState>(`/demo/status/${demoId}`),
     negotiate: (body: {
-      recipient_phone?: string; owner_name?: string;
+      recipient_phone?: string; additional_phones?: string[]; owner_name?: string;
       address?: string; city?: string; state?: string;
       arv?: number; offer_price?: number;
     }) => request<{
       lead_id: string; recipient_phone: string; sent: boolean;
       opening_message: string; error: string | null;
+      additional_lead_ids: string[] | null;
     }>("/demo/negotiate", {
       method: "POST",
       body: JSON.stringify(body),
@@ -137,10 +138,16 @@ export const api = {
     conversation: (leadId: string) => request<{
       lead_id: string; status: string; agreed_price: number | null;
       messages: Array<{ role: "agent" | "owner"; body: string; sent_at: string }>;
+      contract_email_sent_to: string | null;
+      contract_email_delivered: boolean;
+      contract_url: string | null;
     }>(`/demo/conversation/${leadId}`),
     simulateReply: (leadId: string, body: string) => request<{
       lead_id: string; status: string; agreed_price: number | null;
       messages: Array<{ role: "agent" | "owner"; body: string; sent_at: string }>;
+      contract_email_sent_to: string | null;
+      contract_email_delivered: boolean;
+      contract_url: string | null;
     }>(`/demo/conversation/${leadId}/simulate_reply`, {
       method: "POST",
       body: JSON.stringify({ body }),
