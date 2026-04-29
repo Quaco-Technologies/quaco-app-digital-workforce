@@ -39,6 +39,15 @@ async def telenyx_sms(
     body = await request.body()
     payload = await request.json()
 
+    # Telnyx fires the SAME webhook URL for both inbound messages AND delivery
+    # receipts for our outbound. Skip everything that isn't an actual inbound.
+    event_type = (
+        payload.get("data", {}).get("event_type", "")
+        or payload.get("event_type", "")
+    )
+    if event_type and event_type != "message.received":
+        return {"ok": True}
+
     try:
         msg = parse_inbound_sms(payload)
     except Exception as exc:
@@ -49,6 +58,12 @@ async def telenyx_sms(
     text = msg.get("body", "").strip()
 
     if not from_number or not text:
+        return {"ok": True}
+
+    # Ignore loopbacks: if "from" is our own Telnyx number, this is a
+    # delivery receipt impersonating an inbound (Telnyx event_type quirk).
+    our_number = settings.telenyx_from_number.strip()
+    if our_number and from_number.strip() == our_number:
         return {"ok": True}
 
     # Handle STOP / opt-out

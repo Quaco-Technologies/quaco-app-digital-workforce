@@ -63,11 +63,19 @@ class LeadRepository:
         res = q.execute()
         return [Lead(**row) for row in (res.data or [])]
 
-    def update_status(self, lead_id: UUID, status: LeadStatus, investor_id: Optional[UUID] = None) -> Lead:
-        payload = {
+    def update_status(
+        self,
+        lead_id: UUID,
+        status: LeadStatus,
+        investor_id: Optional[UUID] = None,
+        agreed_price: Optional[int] = None,
+    ) -> Lead:
+        payload: dict = {
             "status": status.value,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+        if agreed_price is not None:
+            payload["agreed_price"] = agreed_price
         q = self._db.table("leads").update(payload).eq("id", str(lead_id))
         if investor_id:
             q = q.eq("investor_id", str(investor_id))

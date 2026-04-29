@@ -16,6 +16,7 @@ from src.core.logging import get_logger
 from src.models.contact import Contact
 from src.models.lead import Lead, LeadStatus
 from src.repositories import Repositories
+from src.services import telnyx_poller
 from src.tools.telenyx_tools import send_sms
 
 logger = get_logger(__name__)
