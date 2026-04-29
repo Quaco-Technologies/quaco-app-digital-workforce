@@ -196,7 +196,7 @@ export default function PipelinePage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-zinc-900">Run Pipeline</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Enter a county and your buy box — Acquire runs the 5-stage pipeline below automatically.
+            Enter a county and your buy box — Birddogs runs the 5-stage pipeline below automatically.
           </p>
         </div>
 

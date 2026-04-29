@@ -155,7 +155,7 @@ export default function OnboardingPage() {
         <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
           <Zap size={16} className="text-white" />
         </div>
-        <span className="text-white font-semibold tracking-tight">Acquire</span>
+        <span className="text-white font-semibold tracking-tight">Birddogs</span>
       </div>
 
       {/* Progress bar */}
@@ -346,7 +346,7 @@ export default function OnboardingPage() {
               </div>
 
               <div>
-                <label className={labelClass}>How did you hear about Acquire? <span className="text-zinc-600">(optional)</span></label>
+                <label className={labelClass}>How did you hear about Birddogs? <span className="text-zinc-600">(optional)</span></label>
                 <select value={form.referral_source}
                   onChange={(e) => set("referral_source", e.target.value)}
                   className={`${inputClass} cursor-pointer`}>

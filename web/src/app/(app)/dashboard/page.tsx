@@ -14,7 +14,7 @@ import { mockContracts, type MockContract } from "@/lib/mockData";
 import { SparkLine } from "@/components/SparkLine";
 import { LiveDot } from "@/components/LiveDot";
 import { LiveMessageFeed } from "@/components/LiveMessageFeed";
-import { AIInsight } from "@/components/AIInsight";
+import { AIChat } from "@/components/AIChat";
 import { CountUp } from "@/components/CountUp";
 
 // Demo data shown when the investor hasn't run a pipeline yet — so the dashboard
@@ -168,8 +168,8 @@ export default function DashboardPage() {
                 <SparkLine values={activityTrend} width={280} height={56} stroke="white" fill="rgba(255,255,255,0.28)" />
               </div>
             </div>
-            {/* Right: AI insight panel */}
-            <AIInsight />
+            {/* Right: AI chat panel */}
+            <AIChat />
           </div>
         </div>
 

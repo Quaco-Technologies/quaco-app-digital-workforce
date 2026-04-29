@@ -104,7 +104,7 @@ export default function LoginPage() {
           <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
             <Zap size={18} className="text-white" />
           </div>
-          <span className="text-white font-semibold text-lg tracking-tight">Acquire</span>
+          <span className="text-white font-semibold text-lg tracking-tight">Birddogs</span>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
@@ -177,7 +177,7 @@ export default function LoginPage() {
 
               <h1 className="text-xl font-bold text-white mb-1">Enter invite code</h1>
               <p className="text-sm text-zinc-400 mb-6">
-                Acquire is invite-only during beta. Enter your code to get started.
+                Birddogs is invite-only during beta. Enter your code to get started.
               </p>
 
               <form onSubmit={handleValidateCode} className="space-y-3">

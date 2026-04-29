@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { EnrichedLead, Lead, LeadStatus } from "@/lib/types";
 import { fmt$$, STATUS_LABEL, STATUS_COLOR, PIPELINE_REC_STYLE } from "@/lib/utils";
 import Link from "next/link";
-import { Download, Phone, Search, User, Sparkles, Play } from "lucide-react";
+import { Download, Phone, Search, User, Sparkles, Play, MapPin } from "lucide-react";
 
 interface DemoRow {
   id: string;
@@ -22,16 +22,18 @@ interface DemoRow {
 }
 
 const DEMO_LEADS: DemoRow[] = [
-  { id: "dl1",  address: "3857 N High St",       city: "Atlanta",   state: "GA", zip: "30301", owner: "Maria Hernandez", phone: "(404) 555-0142", offer: 187_500, arv: 268_000, rec: "pursue",        status: "outreach"       },
-  { id: "dl2",  address: "1204 Maple Ridge Dr",  city: "Dallas",    state: "TX", zip: "75201", owner: "James Patel",     phone: "(214) 555-0188", offer: 142_000, arv: 205_000, rec: "pursue",        status: "outreach"       },
-  { id: "dl3",  address: "62 Oak Lane",          city: "Atlanta",   state: "GA", zip: "30308", owner: "Linda Goodwin",   phone: "(404) 555-0107", offer: 95_000,  arv: 138_000, rec: "needs_review",  status: "analyzed"       },
-  { id: "dl4",  address: "991 Bayview Ave",      city: "Tampa",     state: "FL", zip: "33602", owner: "Marcus Chen",     phone: "(813) 555-0233", offer: 215_000, arv: 308_000, rec: "pursue",        status: "negotiating"    },
-  { id: "dl5",  address: "4421 W Pine St",       city: "Charlotte", state: "NC", zip: "28202", owner: "Tasha Williams",  phone: "(704) 555-0156", offer: 168_000, arv: 240_000, rec: "pursue",        status: "outreach"       },
-  { id: "dl6",  address: "707 Sunset Blvd",      city: "Phoenix",   state: "AZ", zip: "85001", owner: "Robert Kim",      phone: "(602) 555-0189", offer: 198_000, arv: 282_000, rec: "pursue",        status: "skip_traced"    },
-  { id: "dl7",  address: "857 Cedar Court",      city: "Atlanta",   state: "GA", zip: "30309", owner: "Devon Carter",    phone: "(404) 555-0211", offer: 178_500, arv: 255_000, rec: "pursue",        status: "negotiating"    },
-  { id: "dl8",  address: "2210 Lakeshore Dr",    city: "Tampa",     state: "FL", zip: "33606", owner: "Sofia Rossi",     phone: "(813) 555-0144", offer: 245_000, arv: 350_000, rec: "pursue",        status: "under_contract" },
-  { id: "dl9",  address: "118 Hillview Rd",      city: "Charlotte", state: "NC", zip: "28203", owner: "Aaron Brooks",    phone: "(704) 555-0177", offer: 156_000, arv: 223_000, rec: "pursue",        status: "closed"         },
-  { id: "dl10", address: "78 Riverside Pl",      city: "Atlanta",   state: "GA", zip: "30310", owner: "Olivia Martinez", phone: "(404) 555-0265", offer: 132_000, arv: 189_000, rec: "pursue",        status: "outreach"       },
+  { id: "dl1",  address: "3857 N High St",       city: "Atlanta",   state: "GA", zip: "30301", owner: "Maria Hernandez", phone: "(404) 555-0142", offer: 187_500, arv: 268_000, rec: "pursue", status: "outreach"       },
+  { id: "dl2",  address: "1204 Maple Ridge Dr",  city: "Dallas",    state: "TX", zip: "75201", owner: "James Patel",     phone: "(214) 555-0188", offer: 142_000, arv: 205_000, rec: "pursue", status: "outreach"       },
+  { id: "dl3",  address: "62 Oak Lane",          city: "Atlanta",   state: "GA", zip: "30308", owner: "Linda Goodwin",   phone: "(404) 555-0107", offer: 95_000,  arv: 138_000, rec: "needs_review", status: "analyzed" },
+  { id: "dl4",  address: "991 Bayview Ave",      city: "Tampa",     state: "FL", zip: "33602", owner: "Marcus Chen",     phone: "(813) 555-0233", offer: 215_000, arv: 308_000, rec: "pursue", status: "negotiating"    },
+  { id: "dl5",  address: "4421 W Pine St",       city: "Charlotte", state: "NC", zip: "28202", owner: "Tasha Williams",  phone: "(704) 555-0156", offer: 168_000, arv: 240_000, rec: "pursue", status: "outreach"       },
+  { id: "dl6",  address: "707 Sunset Blvd",      city: "Phoenix",   state: "AZ", zip: "85001", owner: "Robert Kim",      phone: "(602) 555-0189", offer: 198_000, arv: 282_000, rec: "pursue", status: "skip_traced"    },
+  { id: "dl7",  address: "857 Cedar Court",      city: "Atlanta",   state: "GA", zip: "30309", owner: "Devon Carter",    phone: "(404) 555-0211", offer: 178_500, arv: 255_000, rec: "pursue", status: "negotiating"    },
+  { id: "dl8",  address: "2210 Lakeshore Dr",    city: "Tampa",     state: "FL", zip: "33606", owner: "Sofia Rossi",     phone: "(813) 555-0144", offer: 245_000, arv: 350_000, rec: "pursue", status: "under_contract" },
+  { id: "dl9",  address: "118 Hillview Rd",      city: "Charlotte", state: "NC", zip: "28203", owner: "Aaron Brooks",    phone: "(704) 555-0177", offer: 156_000, arv: 223_000, rec: "pursue", status: "closed"         },
+  { id: "dl10", address: "78 Riverside Pl",      city: "Atlanta",   state: "GA", zip: "30310", owner: "Olivia Martinez", phone: "(404) 555-0265", offer: 132_000, arv: 189_000, rec: "pursue", status: "outreach"       },
+  { id: "dl11", address: "412 Elm Way",          city: "Atlanta",   state: "GA", zip: "30312", owner: "Carlos Diaz",     phone: "(404) 555-0148", offer: 124_500, arv: 178_000, rec: "pursue", status: "skip_traced"    },
+  { id: "dl12", address: "1501 Bay Pl",          city: "Tampa",     state: "FL", zip: "33611", owner: "Sofia Romero",    phone: "(813) 555-0298", offer: 198_000, arv: 282_000, rec: "pursue", status: "negotiating"    },
 ];
 
 const STATUSES: Array<LeadStatus | "all"> = [
@@ -211,66 +213,87 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl overflow-hidden">
+      <div>
         {loading ? (
           <div className="py-16 text-center text-sm text-zinc-400">Loading…</div>
         ) : isDemo ? (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 text-left text-xs text-zinc-400 uppercase tracking-wide">
-                <th className="px-5 py-3 font-medium">Property</th>
-                <th className="px-5 py-3 font-medium">Owner</th>
-                <th className="px-5 py-3 font-medium">Phone</th>
-                <th className="px-5 py-3 font-medium">Offer / ARV</th>
-                <th className="px-5 py-3 font-medium">Recommendation</th>
-                <th className="px-5 py-3 font-medium">Stage</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
+          demoFiltered.length === 0 ? (
+            <div className="text-center text-sm text-zinc-400 py-12">No leads match this filter.</div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4 stagger-children">
               {demoFiltered.map((d) => {
                 const rec = PIPELINE_REC_STYLE[d.rec];
+                const margin = d.arv - d.offer;
+                const marginPct = Math.round((margin / d.arv) * 100);
                 return (
-                  <tr key={d.id} className="hover:bg-zinc-50/60 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <Link href="/pipeline" className="font-medium text-zinc-900 hover:text-blue-600">
-                        {d.address}
-                      </Link>
-                      <p className="text-xs text-zinc-400 mt-0.5">{d.city}, {d.state} {d.zip}</p>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0">
-                          <User size={11} className="text-blue-500" />
-                        </div>
-                        <span className="text-sm text-zinc-800">{d.owner}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        <Phone size={11} className="text-zinc-400 flex-shrink-0" />
-                        <a href={`tel:${d.phone}`} className="text-xs text-blue-600 hover:text-blue-700 font-medium">{d.phone}</a>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <p className="font-semibold text-zinc-900">{fmt$$(d.offer)}</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">ARV {fmt$$(d.arv)}</p>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${rec.className}`}>{rec.label}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${STATUS_COLOR[d.status]}`}>
+                  <Link
+                    key={d.id}
+                    href="/pipeline"
+                    className="group relative bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-5 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 transition-all"
+                  >
+                    {/* Stage chip */}
+                    <div className="flex items-start justify-between mb-3">
+                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md ${STATUS_COLOR[d.status]}`}>
                         {STATUS_LABEL[d.status]}
                       </span>
-                    </td>
-                  </tr>
+                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md ${rec.className}`}>
+                        {rec.label}
+                      </span>
+                    </div>
+
+                    {/* Address */}
+                    <p className="font-semibold text-zinc-900 leading-tight mb-0.5">{d.address}</p>
+                    <p className="text-xs text-zinc-500 flex items-center gap-1 mb-4">
+                      <MapPin size={10} className="text-zinc-400" />
+                      {d.city}, {d.state} {d.zip}
+                    </p>
+
+                    {/* Offer & ARV row */}
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-2.5">
+                        <p className="text-[10px] text-emerald-700 font-semibold uppercase tracking-wide">Your Offer</p>
+                        <p className="text-base font-bold text-emerald-700">{fmt$$(d.offer)}</p>
+                      </div>
+                      <div className="bg-blue-50/60 border border-blue-100 rounded-lg p-2.5">
+                        <p className="text-[10px] text-blue-700 font-semibold uppercase tracking-wide">ARV</p>
+                        <p className="text-base font-bold text-blue-700">{fmt$$(d.arv)}</p>
+                      </div>
+                    </div>
+
+                    {/* Margin bar */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-1">
+                        <span>Spread (ARV − offer)</span>
+                        <span className="font-semibold text-zinc-700">{fmt$$(margin)} · {marginPct}%</span>
+                      </div>
+                      <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-emerald-500"
+                          style={{ width: `${Math.min(100, marginPct * 2)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Owner row */}
+                    <div className="flex items-center justify-between pt-3 border-t border-zinc-100">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                          {d.owner.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-zinc-800 truncate">{d.owner}</p>
+                          <p className="text-[10px] text-blue-600 font-medium">{d.phone}</p>
+                        </div>
+                      </div>
+                      <button className="text-[10px] font-bold uppercase tracking-wide bg-gradient-to-br from-blue-600 to-emerald-600 text-white px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all">
+                        Open
+                      </button>
+                    </div>
+                  </Link>
                 );
               })}
-              {demoFiltered.length === 0 && (
-                <tr><td colSpan={6} className="text-center text-sm text-zinc-400 py-8">No leads match this filter.</td></tr>
-              )}
-            </tbody>
-          </table>
+            </div>
+          )
         ) : visible.length === 0 ? (
           <div className="py-20 text-center px-6">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
@@ -280,6 +303,7 @@ export default function LeadsPage() {
             <p className="text-sm text-zinc-500 max-w-sm mx-auto">Try clearing the search or switching tabs.</p>
           </div>
         ) : (
+          <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100 text-left text-xs text-zinc-400 uppercase tracking-wide">
@@ -357,6 +381,7 @@ export default function LeadsPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

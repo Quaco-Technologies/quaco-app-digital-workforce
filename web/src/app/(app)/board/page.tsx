@@ -121,14 +121,14 @@ export default function BoardPage() {
       {loading ? (
         <div className="py-20 text-center"><Loader2 size={20} className="text-zinc-300 animate-spin mx-auto" /></div>
       ) : (
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max stagger-children">
+        <div>
+          <div className="grid grid-cols-6 gap-3 stagger-children">
             {COLUMNS.map((col) => {
               const realItems = grouped[col.key] ?? [];
               const demoItems = isDemo ? (DEMO_BY_STATUS[col.key] ?? []) : [];
               const totalCount = realItems.length + demoItems.length;
               return (
-                <div key={col.key} className="w-72 flex-shrink-0">
+                <div key={col.key} className="min-w-0">
                   <div className="bg-white/80 backdrop-blur-md border border-white/60 rounded-t-2xl px-4 py-3 relative overflow-hidden">
                     <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${col.accent}`} />
                     <div className="flex items-center justify-between">

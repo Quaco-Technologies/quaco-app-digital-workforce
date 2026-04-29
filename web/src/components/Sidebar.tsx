@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Folder, Play, Settings, Zap, LogOut, Inbox,
-  LayoutGrid, BarChart3, FileSignature, Repeat,
+  LayoutGrid, BarChart3, FileSignature, Repeat, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +27,7 @@ const sections: NavSection[] = [
   {
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/demo",      label: "Investor Demo", icon: Sparkles },
     ],
   },
   {
@@ -102,7 +103,7 @@ export function Sidebar() {
           <Zap size={14} className="text-white" />
         </div>
         <span className="text-white font-semibold tracking-tight text-sm">
-          Acquire
+          Birddogs
         </span>
       </div>
 

@@ -108,6 +108,34 @@ export interface LeadDetail {
   conversation: Message[];
 }
 
+export interface DemoStage {
+  name: string;
+  label: string;
+  status: "pending" | "running" | "complete";
+  detail: string;
+  started_at: number | null;
+  completed_at: number | null;
+}
+
+export interface DemoSms {
+  ts: number;
+  kind: string;
+  body: string;
+  to: string;
+  delivered: boolean;
+  error: string | null;
+}
+
+export interface DemoState {
+  demo_id: string;
+  started_at: number;
+  recipient_phone: string;
+  stages: DemoStage[];
+  sms_sent: DemoSms[];
+  contract_url: string | null;
+  is_complete: boolean;
+}
+
 export interface InboxThread {
   lead_id: string;
   address: string;
