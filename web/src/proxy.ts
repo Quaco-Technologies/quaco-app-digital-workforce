@@ -35,7 +35,8 @@ export async function proxy(request: NextRequest) {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/install")
+    pathname.startsWith("/install") ||
+    pathname.startsWith("/sign")
   ) {
     return supabaseResponse;
   }

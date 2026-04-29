@@ -141,6 +141,8 @@ export const api = {
       contract_email_sent_to: string | null;
       contract_email_delivered: boolean;
       contract_url: string | null;
+      contract_signed: boolean;
+      signed_at: string | null;
     }>(`/demo/conversation/${leadId}`),
     simulateReply: (leadId: string, body: string) => request<{
       lead_id: string; status: string; agreed_price: number | null;
@@ -148,10 +150,15 @@ export const api = {
       contract_email_sent_to: string | null;
       contract_email_delivered: boolean;
       contract_url: string | null;
+      contract_signed: boolean;
+      signed_at: string | null;
     }>(`/demo/conversation/${leadId}/simulate_reply`, {
       method: "POST",
       body: JSON.stringify({ body }),
     }),
+    signContract: (leadId: string) =>
+      fetch(`${BASE}/demo/contract/${leadId}/sign`, { method: "POST" })
+        .then((r) => r.json() as Promise<{ lead_id: string; signed: boolean; signed_at: string }>),
   },
 
   outreach: {

@@ -345,6 +345,8 @@ class ConversationResponse(BaseModel):
     contract_email_sent_to: Optional[str] = None
     contract_email_delivered: bool = False
     contract_url: Optional[str] = None
+    contract_signed: bool = False
+    signed_at: Optional[str] = None
 
 
 class SimulateReplyRequest(BaseModel):
@@ -393,6 +395,7 @@ def get_conversation(
 
     messages = repos.messages.get_conversation(lead_id)
     email_state = _LEAD_EMAIL_STATE.get(str(lead_id), {})
+    sign_state = _SIGNED.get(str(lead_id))
     return ConversationResponse(
         lead_id=str(lead_id),
         status=lead.status.value if hasattr(lead.status, "value") else str(lead.status),
@@ -408,4 +411,43 @@ def get_conversation(
         contract_email_sent_to=email_state.get("to"),
         contract_email_delivered=bool(email_state.get("delivered")),
         contract_url=email_state.get("url"),
+        contract_signed=bool(sign_state),
+        signed_at=sign_state,
     )
+
+
+# Public sign endpoints — no auth, called from the email link OR the dashboard.
+_SIGNED: dict[str, str] = {}
+
+
+class SignRequest(BaseModel):
+    pass
+
+
+@router.post("/contract/{lead_id}/sign")
+def sign_contract(lead_id: UUID) -> dict:
+    """Mark a demo contract as signed. Public endpoint so the email link works.
+    Idempotent — multiple calls return the same timestamp."""
+    key = str(lead_id)
+    if key not in _SIGNED:
+        _SIGNED[key] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return {"lead_id": key, "signed": True, "signed_at": _SIGNED[key]}
+
+
+@router.get("/contract/{lead_id}")
+def get_contract_summary(lead_id: UUID, repos: Repositories = Depends(get_repos)) -> dict:
+    """Lightweight public lookup for the sign page — no auth needed."""
+    lead = repos.leads.get(lead_id)
+    contact = repos.contacts.get(lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return {
+        "lead_id": str(lead_id),
+        "address": lead.address,
+        "city": lead.city,
+        "state": lead.state,
+        "owner_name": (contact.owner_name if contact else None) or lead.owner_name or "Owner",
+        "agreed_price": lead.agreed_price or lead.offer_price,
+        "signed": str(lead_id) in _SIGNED,
+        "signed_at": _SIGNED.get(str(lead_id)),
+    }

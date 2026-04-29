@@ -74,11 +74,14 @@ export default function MissionControlPage() {
 
   const [phase, setPhase] = useState<"idle" | "stages" | "negotiating">("idle");
   const [leadId, setLeadId] = useState<string | null>(null);
+  const [smsSentTo, setSmsSentTo] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConvMsg[]>([]);
   const [agreedPrice, setAgreedPrice] = useState<number | null>(null);
   const [recipientPhone, setRecipientPhone] = useState<string>("");
   const [contractEmail, setContractEmail] = useState<string | null>(null);
   const [contractDelivered, setContractDelivered] = useState(false);
+  const [contractSigned, setContractSigned] = useState(false);
+  const [contractUrl, setContractUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>(IDLE_METRICS);
   const [contracts, setContracts] = useState<MockContract[]>([]);
@@ -106,9 +109,12 @@ export default function MissionControlPage() {
     stop();
     setError(null);
     setLeadId(null);
+    setSmsSentTo(null);
     setConversation([]);
     setContractEmail(null);
     setContractDelivered(false);
+    setContractSigned(false);
+    setContractUrl(null);
     setAgreedPrice(null);
     startedAtRef.current = Date.now() / 1000;
     setMetrics(IDLE_METRICS);
@@ -139,6 +145,8 @@ export default function MissionControlPage() {
       });
       setLeadId(res.lead_id);
       setRecipientPhone(res.recipient_phone);
+      // SMS sent indicator — only show if Twilio confirmed delivery
+      if (res.sent) setSmsSentTo(res.recipient_phone);
 
       if (res.opening_message) {
         setConversation([{ role: "agent", body: res.opening_message, sent_at: new Date().toISOString() }]);
@@ -154,8 +162,13 @@ export default function MissionControlPage() {
             setContractEmail(c.contract_email_sent_to);
             setContractDelivered(c.contract_email_delivered);
           }
-          if (c.status === "negotiating" && c.agreed_price !== null) {
-            const agreed = c.agreed_price;
+          if (c.contract_url) setContractUrl(c.contract_url);
+
+          // Only add the contract to "Ready to Sign" + bump Under Contract
+          // ONCE THE USER SIGNS — not at deal-agreed time.
+          if (c.contract_signed && !contractSigned) {
+            setContractSigned(true);
+            const agreed = c.agreed_price ?? 0;
             setContracts((prev) => {
               if (prev.some((p) => p.id === c.lead_id)) return prev;
               const next: MockContract = {
@@ -166,13 +179,18 @@ export default function MissionControlPage() {
                 state: form.state || "GA",
                 owner_name: "Maria Hernandez",
                 agreed_price: agreed,
-                status: "sent",
+                status: "completed",
                 sent_at: new Date().toISOString(),
-                completed_at: null,
+                completed_at: c.signed_at || new Date().toISOString(),
                 envelope_id: c.lead_id,
               };
               return [next, ...prev];
             });
+            // bump Under Contract metric +1
+            setMetrics((prev) => prev.map((m) =>
+              m.key === "contract" ? { ...m, value: m.value + 1 } : m
+            ));
+            stop();
           }
           if (c.status === "dead") stop();
         } catch { /* keep polling */ }
@@ -234,6 +252,9 @@ export default function MissionControlPage() {
             agreedPrice={agreedPrice}
             contractEmail={contractEmail}
             contractDelivered={contractDelivered}
+            contractSigned={contractSigned}
+            contractUrl={contractUrl}
+            smsSentTo={smsSentTo}
             leadId={leadId}
             onStagesComplete={fireNegotiation}
             onSimulateReply={async (body) => {
@@ -417,7 +438,8 @@ function BuyBoxCard({
 // ─── LIVE FEED ──────────────────────────────────────────────────────────────
 function LiveFeedCard({
   phase, metrics, conversation, recipientPhone, agreedPrice,
-  contractEmail, contractDelivered, leadId, onStagesComplete, onSimulateReply,
+  contractEmail, contractDelivered, contractSigned, contractUrl, smsSentTo,
+  leadId, onStagesComplete, onSimulateReply,
 }: {
   phase: "idle" | "stages" | "negotiating";
   metrics: Metric[];
@@ -426,6 +448,9 @@ function LiveFeedCard({
   agreedPrice: number | null;
   contractEmail: string | null;
   contractDelivered: boolean;
+  contractSigned: boolean;
+  contractUrl: string | null;
+  smsSentTo: string | null;
   leadId: string | null;
   onStagesComplete: () => void;
   onSimulateReply: (body: string) => void;
@@ -475,6 +500,15 @@ function LiveFeedCard({
       {/* Conversation thread */}
       {phase === "negotiating" && (
         <div className="border-t border-slate-100 pt-4 mt-2">
+          {/* SMS-sent confirmation */}
+          {smsSentTo && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-3 flex items-center gap-2 animate-fade-up">
+              <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
+              <p className="text-xs text-blue-900">
+                <span className="font-semibold">Text sent</span> to <span className="font-mono">{smsSentTo}</span> via Twilio
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Negotiating with {recipientPhone || "owner"}
@@ -545,23 +579,55 @@ function LiveFeedCard({
             </div>
           )}
 
-          {/* Contract sent */}
+          {/* Contract sent — with Sign Now button until signed */}
           {contractEmail && (
-            <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 animate-fade-up">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center">
-                  <FileSignature size={14} className="text-emerald-700" />
+            <div className={`mt-3 rounded-xl p-3 border animate-fade-up ${
+              contractSigned
+                ? "bg-emerald-50 border-emerald-200"
+                : "bg-amber-50 border-amber-200"
+            }`}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center ${
+                  contractSigned ? "bg-emerald-100" : "bg-amber-100"
+                }`}>
+                  <FileSignature size={14} className={contractSigned ? "text-emerald-700" : "text-amber-700"} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
-                    {contractDelivered ? "Contract emailed" : "Contract queued"}
+                  <p className={`text-[10px] font-semibold uppercase tracking-wider ${
+                    contractSigned ? "text-emerald-700" : "text-amber-700"
+                  }`}>
+                    {contractSigned ? "Contract signed" : contractDelivered ? "Contract emailed" : "Contract queued"}
                   </p>
                   <p className="text-xs text-slate-700 truncate">{contractEmail}</p>
                 </div>
-                {contractDelivered && (
-                  <span className="text-[10px] font-semibold bg-white text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">✓ SENT</span>
+                {contractSigned && (
+                  <span className="text-[10px] font-semibold bg-white text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">✓ SIGNED</span>
                 )}
               </div>
+              {!contractSigned && leadId && (
+                <div className="flex gap-1.5">
+                  <a
+                    href={contractUrl ?? `/sign/${leadId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 text-center bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2 rounded-md transition-colors"
+                  >
+                    Open in new tab
+                  </a>
+                  <button
+                    onClick={async () => {
+                      if (!leadId) return;
+                      try {
+                        await api.demo.signContract(leadId);
+                        // poll will pick up the signed state on next tick
+                      } catch { /* swallow */ }
+                    }}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-md transition-colors"
+                  >
+                    Sign here ↳
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+import os
 import re
 
 from openai import OpenAI
@@ -191,7 +192,9 @@ def handle_reply(lead_id: UUID, inbound_body: str, repos: Repositories) -> Dict[
 
     if target_email and (parsed["agreed_price"] or lead.agreed_price):
         agreed = parsed["agreed_price"] or lead.agreed_price or 0
-        contract_url = f"https://birddogs.app/c/{lead_id}"
+        # Public sign URL on the deployed Vercel app — works from email on any device
+        sign_base = os.getenv("PUBLIC_WEB_URL", "https://web-rho-six-94.vercel.app").rstrip("/")
+        contract_url = f"{sign_base}/sign/{lead_id}"
         subject, html = render_contract_email(
             owner_name=contact.owner_name or "there",
             address=lead.address,
