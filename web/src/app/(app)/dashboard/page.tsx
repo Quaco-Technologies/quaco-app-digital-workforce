@@ -74,7 +74,6 @@ export default function MissionControlPage() {
 
   const [phase, setPhase] = useState<"idle" | "stages" | "negotiating">("idle");
   const [leadId, setLeadId] = useState<string | null>(null);
-  const [smsSentTo, setSmsSentTo] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConvMsg[]>([]);
   const [agreedPrice, setAgreedPrice] = useState<number | null>(null);
   const [recipientPhone, setRecipientPhone] = useState<string>("");
@@ -109,7 +108,6 @@ export default function MissionControlPage() {
     stop();
     setError(null);
     setLeadId(null);
-    setSmsSentTo(null);
     setConversation([]);
     setContractEmail(null);
     setContractDelivered(false);
@@ -166,8 +164,6 @@ export default function MissionControlPage() {
       });
       setLeadId(res.lead_id);
       setRecipientPhone(res.recipient_phone);
-      // SMS sent indicator — only show if Twilio confirmed delivery
-      if (res.sent) setSmsSentTo(res.recipient_phone);
 
       if (res.opening_message) {
         setConversation([{ role: "agent", body: res.opening_message, sent_at: new Date().toISOString() }]);
@@ -275,7 +271,6 @@ export default function MissionControlPage() {
             contractDelivered={contractDelivered}
             contractSigned={contractSigned}
             contractUrl={contractUrl}
-            smsSentTo={smsSentTo}
             leadId={leadId}
             onStagesComplete={fireNegotiation}
             onSimulateReply={async (body) => {
@@ -459,7 +454,7 @@ function BuyBoxCard({
 // ─── LIVE FEED ──────────────────────────────────────────────────────────────
 function LiveFeedCard({
   phase, metrics, conversation, recipientPhone, agreedPrice,
-  contractEmail, contractDelivered, contractSigned, contractUrl, smsSentTo,
+  contractEmail, contractDelivered, contractSigned, contractUrl,
   leadId, onStagesComplete, onSimulateReply,
 }: {
   phase: "idle" | "stages" | "negotiating";
@@ -471,7 +466,6 @@ function LiveFeedCard({
   contractDelivered: boolean;
   contractSigned: boolean;
   contractUrl: string | null;
-  smsSentTo: string | null;
   leadId: string | null;
   onStagesComplete: () => void;
   onSimulateReply: (body: string) => void;
@@ -521,15 +515,6 @@ function LiveFeedCard({
       {/* Conversation thread */}
       {phase === "negotiating" && (
         <div className="border-t border-slate-100 pt-4 mt-2">
-          {/* SMS-sent confirmation */}
-          {smsSentTo && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-3 flex items-center gap-2 animate-fade-up">
-              <CheckCircle2 size={14} className="text-blue-600 shrink-0" />
-              <p className="text-xs text-blue-900">
-                <span className="font-semibold">Text sent</span> to <span className="font-mono">{smsSentTo}</span> via Twilio
-              </p>
-            </div>
-          )}
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Negotiating with {recipientPhone || "owner"}
