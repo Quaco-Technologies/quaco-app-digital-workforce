@@ -123,11 +123,14 @@ def _parse_response(text: str) -> Dict[str, Any]:
 
 
 def _call_claude(messages: List[Dict[str, Any]]) -> str:
-    """Despite the name, this now calls OpenAI — kept for caller compatibility."""
+    """Despite the name, this now calls OpenAI — kept for caller compatibility.
+    gpt-4o-mini is ~3-5x faster than gpt-4o for short SMS replies and still
+    plenty smart for a conversational negotiator. max_tokens is small so
+    OpenAI returns quickly."""
     full = [{"role": "system", "content": _SYSTEM}, *messages]
     response = _get_client().chat.completions.create(
-        model=settings.openai_model,
-        max_tokens=256,
+        model="gpt-4o-mini",
+        max_tokens=140,
         messages=full,
     )
     return (response.choices[0].message.content or "").strip()
