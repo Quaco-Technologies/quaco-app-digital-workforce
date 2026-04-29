@@ -29,7 +29,7 @@ export default function InboxPage() {
   const unreadCount = threads?.filter((t) => t.has_unread_reply).length ?? 0;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
@@ -49,9 +49,9 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Thread list */}
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           {error && (
             <div className="bg-red-50/80 backdrop-blur-md border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4">
               Couldn&apos;t load inbox: {error}
@@ -133,7 +133,7 @@ export default function InboxPage() {
         </div>
 
         {/* Live feed */}
-        <div className="col-span-1">
+        <div className="md:col-span-1">
           <LiveMessageFeed heading="Network Activity" />
         </div>
       </div>

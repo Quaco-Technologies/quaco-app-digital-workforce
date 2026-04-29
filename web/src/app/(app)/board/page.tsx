@@ -87,7 +87,7 @@ export default function BoardPage() {
   }, {});
 
   return (
-    <div className="p-8 animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -122,7 +122,7 @@ export default function BoardPage() {
         <div className="py-20 text-center"><Loader2 size={20} className="text-zinc-300 animate-spin mx-auto" /></div>
       ) : (
         <div>
-          <div className="grid grid-cols-6 gap-3 stagger-children">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 stagger-children">
             {COLUMNS.map((col) => {
               const realItems = grouped[col.key] ?? [];
               const demoItems = isDemo ? (DEMO_BY_STATUS[col.key] ?? []) : [];

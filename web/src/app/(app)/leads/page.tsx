@@ -138,7 +138,7 @@ export default function LeadsPage() {
   const shownCount = isDemo ? demoFiltered.length : visible.length;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto animate-fade-in">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
@@ -220,7 +220,7 @@ export default function LeadsPage() {
           demoFiltered.length === 0 ? (
             <div className="text-center text-sm text-zinc-400 py-12">No leads match this filter.</div>
           ) : (
-            <div className="grid grid-cols-3 gap-4 stagger-children">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
               {demoFiltered.map((d) => {
                 const rec = PIPELINE_REC_STYLE[d.rec];
                 const margin = d.arv - d.offer;

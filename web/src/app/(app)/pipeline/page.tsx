@@ -192,7 +192,7 @@ export default function PipelinePage() {
   // ── IDLE: buy-box form + always-visible stage preview ─────────────────────
   if (run.phase === "idle") {
     return (
-      <div className="p-8 max-w-5xl mx-auto animate-fade-in">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto animate-fade-in">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-zinc-900">Run Pipeline</h1>
           <p className="text-sm text-zinc-500 mt-1">
@@ -401,7 +401,7 @@ export default function PipelinePage() {
     };
 
     return (
-      <div className="p-8 max-w-2xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-zinc-900">Pipeline Running</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
@@ -539,7 +539,7 @@ export default function PipelinePage() {
   const review   = (result.needs_review as number) ?? 0;
 
   return (
-    <div className="p-8 max-w-xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-900">Pipeline Complete</h1>
         <p className="text-sm text-zinc-500 mt-0.5">{form.city}, {form.state} &middot; {form.county} County</p>

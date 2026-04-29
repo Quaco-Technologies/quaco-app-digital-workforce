@@ -78,14 +78,14 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="p-8 max-w-6xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
         <div className="py-20 text-center"><Loader2 size={20} className="text-zinc-300 animate-spin mx-auto" /></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
@@ -98,7 +98,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Top KPIs */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KPI
           icon={<Activity size={14} />}
           label="Records Processed"
@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         {/* Funnel */}
         <div className="col-span-2 bg-white/70 backdrop-blur-md border border-white/60 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">

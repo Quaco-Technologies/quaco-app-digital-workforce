@@ -67,7 +67,7 @@ export default function DemoPage() {
   const sms = state?.sms_sent ?? [];
 
   return (
-    <div className="p-8 max-w-5xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto animate-fade-in">
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">
@@ -123,9 +123,9 @@ export default function DemoPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-5 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
             {/* Stage timeline */}
-            <div className="col-span-3 bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-6 shadow-sm">
+            <div className="md:col-span-3 bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-zinc-900">Pipeline Progress</h3>
                 <span className="text-xs text-zinc-500">
@@ -138,7 +138,7 @@ export default function DemoPage() {
             </div>
 
             {/* Live SMS feed */}
-            <div className="col-span-2 bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-5 shadow-sm flex flex-col">
+            <div className="md:col-span-2 bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-5 shadow-sm flex flex-col">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
                   <MessageSquare size={15} className="text-blue-600" /> Texts Sent

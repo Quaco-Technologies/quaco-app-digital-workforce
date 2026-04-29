@@ -52,7 +52,7 @@ export default function SettingsPage() {
   const labelClass = "block text-xs font-medium text-zinc-500 mb-1.5";
 
   return (
-    <div className="p-8 max-w-xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-zinc-900">Settings</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Manage your account</p>

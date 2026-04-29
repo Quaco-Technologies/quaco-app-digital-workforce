@@ -31,7 +31,7 @@ export default function LeadDetailPage() {
   const rec = lead.pipeline_recommendation ? PIPELINE_REC_STYLE[lead.pipeline_recommendation] : null;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <Link
         href="/leads"
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 mb-6 transition-colors"
@@ -57,7 +57,7 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left column */}
         <div className="col-span-2 space-y-5">
           {/* Photo gallery */}

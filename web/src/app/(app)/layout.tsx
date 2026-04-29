@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileNav } from "@/components/MobileNav";
+import { MobileHeader } from "@/components/MobileHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +41,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="absolute top-1/3 right-0 w-[420px] h-[420px] bg-emerald-200/25 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-1/3 w-[380px] h-[380px] bg-cyan-200/20 rounded-full blur-3xl" />
       </div>
-      <Sidebar />
-      <main className="flex-1 overflow-auto relative">{children}</main>
+      {/* Desktop sidebar — hidden on mobile */}
+      <div className="hidden md:block">
+        <Sidebar />
+      </div>
+      <main className="flex-1 overflow-auto relative pb-20 md:pb-0">
+        <MobileHeader />
+        {children}
+      </main>
+      <MobileNav />
     </div>
   );
 }

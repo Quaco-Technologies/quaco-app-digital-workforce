@@ -93,12 +93,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between mb-7">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-zinc-900">Command Center</h1>
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900">Command Center</h1>
             {runningCampaigns > 0 && <LiveDot color="red" label="LIVE" />}
             {isDemo && (
               <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
@@ -121,7 +121,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 stagger-children">
         <KPI icon={<Users size={14} />} label="Ready to Contact" value={actionableCount.toString()} accent="text-blue-700" href="/leads" />
         <KPI
           icon={<MessageSquare size={14} />}
@@ -143,16 +143,16 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         {/* Activity card — left half metric, right half AI insight */}
-        <div className="col-span-2 relative overflow-hidden rounded-2xl text-white shadow-xl shadow-blue-500/30 animate-fade-up">
+        <div className="md:col-span-2 relative overflow-hidden rounded-2xl text-white shadow-xl shadow-blue-500/30 animate-fade-up">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-emerald-600 animate-gradient" />
           <div className="absolute inset-0 opacity-40 pointer-events-none">
             <div className="absolute -top-16 -right-16 w-56 h-56 bg-white/50 blur-3xl rounded-full" />
             <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-emerald-300/50 blur-3xl rounded-full" />
             <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-cyan-200/40 blur-3xl rounded-full -translate-x-1/2 -translate-y-1/2" />
           </div>
-          <div className="relative p-6 grid grid-cols-2 gap-5">
+          <div className="relative p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
             {/* Left: hero metric + sparkline */}
             <div className="flex flex-col">
               <div className="flex items-center gap-2 mb-2">
@@ -178,7 +178,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Hot replies + new leads */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <GlassCard>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
