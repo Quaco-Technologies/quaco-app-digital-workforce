@@ -120,14 +120,35 @@ export default function MissionControlPage() {
     setMetrics(IDLE_METRICS);
     setPhase("stages");
 
+    // Sequential count-up: fill metric 0 to its target, THEN metric 1, then 2.
+    // Skip metric 3 (Under Contract) entirely — that one only moves on sign.
+    // Real-world flow: contact → negotiate → accepted → contract.
+    // Each metric fills in ~1.4s with a smooth linear ramp + tiny jitter so
+    // it doesn't look mechanical.
+    let activeIdx = 0;
+    let pauseTicks = 0; // brief pause between metrics for visual breathing room
+    const TICKABLE = 3;
+    const TICK_MS = 60;
+    const FILL_TICKS = 22; // ~22 ticks × 60ms ≈ 1.3s per metric
+    const PAUSE_TICKS = 6;  // ~360ms pause between metrics
     tickRef.current = setInterval(() => {
-      setMetrics((prev) => prev.map((m) => {
-        const target = DEMO_BASELINE.find((d) => d.key === m.key)?.value ?? m.value;
-        if (m.value >= target) return m;
-        const inc = Math.max(1, Math.ceil((target - m.value) * 0.05));
-        return { ...m, value: Math.min(target, m.value + Math.ceil(Math.random() * inc)) };
-      }));
-    }, 280);
+      setMetrics((prev) => {
+        if (activeIdx >= TICKABLE) return prev;
+        if (pauseTicks > 0) { pauseTicks -= 1; return prev; }
+        const m = prev[activeIdx];
+        const target = DEMO_BASELINE[activeIdx].value;
+        if (m.value >= target) {
+          activeIdx += 1;
+          pauseTicks = PAUSE_TICKS;
+          return prev;
+        }
+        const baseStep = Math.max(1, Math.ceil(target / FILL_TICKS));
+        // ±20% jitter so it feels alive
+        const jitter = Math.max(1, Math.round(baseStep * (0.8 + Math.random() * 0.4)));
+        const next = Math.min(target, m.value + jitter);
+        return prev.map((p, i) => i === activeIdx ? { ...p, value: next } : p);
+      });
+    }, TICK_MS);
   };
 
   const fireNegotiation = useCallback(async () => {
@@ -543,39 +564,34 @@ function LiveFeedCard({
             </div>
           )}
 
-          {/* Reply controls */}
+          {/* Real path: just reply on your phone — the AI handles the rest.
+              The textbox below is only a fallback for when SMS hasn't been
+              delivered (e.g. Twilio config / carrier issues). */}
           {!agreedPrice && conversation.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-100">
-              <div className="flex flex-wrap gap-1 mb-2">
-                {SUGGESTED_REPLIES.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => sendReply(s)}
+              <p className="text-[11px] text-slate-500 text-center mb-2">
+                Reply to the text on your phone — the AI will counter live.
+              </p>
+              <details className="text-[10px] text-slate-400">
+                <summary className="cursor-pointer text-center hover:text-slate-600">Or simulate the seller&apos;s reply →</summary>
+                <div className="flex gap-1.5 mt-2">
+                  <input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendReply(draft); } }}
+                    placeholder="Type what the seller would text back…"
                     disabled={thinking}
-                    className="text-[11px] text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition-colors disabled:opacity-40"
+                    className="flex-1 bg-white border border-slate-200 text-slate-900 placeholder-slate-400 text-xs px-3 py-2 rounded-lg focus:outline-none focus:border-slate-400"
+                  />
+                  <button
+                    onClick={() => sendReply(draft)}
+                    disabled={thinking || !draft.trim()}
+                    className="bg-slate-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
                   >
-                    {s}
+                    {thinking ? "…" : "Send"}
                   </button>
-                ))}
-              </div>
-              <div className="flex gap-1.5">
-                <input
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendReply(draft); } }}
-                  placeholder="Reply as the owner…"
-                  disabled={thinking}
-                  className="flex-1 bg-white border border-slate-200 text-slate-900 placeholder-slate-400 text-xs px-3 py-2 rounded-lg focus:outline-none focus:border-slate-400"
-                />
-                <button
-                  onClick={() => sendReply(draft)}
-                  disabled={thinking || !draft.trim()}
-                  className="bg-slate-900 text-white disabled:bg-slate-300 disabled:cursor-not-allowed text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
-                >
-                  {thinking ? "…" : "Send"}
-                </button>
-              </div>
-              <p className="text-[10px] text-slate-400 mt-2">Reply on your phone OR use these — AI counters live</p>
+                </div>
+              </details>
             </div>
           )}
 
@@ -640,13 +656,6 @@ function LiveFeedCard({
     </div>
   );
 }
-
-const SUGGESTED_REPLIES = [
-  "Maybe — what's your number?",
-  "I'd need at least $215k.",
-  "Send the offer in writing.",
-  "OK my email is josh@example.com",
-];
 
 function MetricRow({ m, active }: { m: Metric; active: boolean }) {
   const c = COLOR[m.color];
