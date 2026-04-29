@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from anthropic import Anthropic
+from openai import OpenAI
 
 from src.core.config import settings
 from src.core.logging import get_logger
@@ -13,7 +13,15 @@ from src.repositories import Repositories
 from src.tools.telenyx_tools import send_sms
 
 logger = get_logger(__name__)
-_client = Anthropic()
+
+_client: Optional[OpenAI] = None
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI(api_key=settings.openai_api_key)
+    return _client
 
 _SYSTEM = """You are an expert real estate acquisitions specialist conducting SMS negotiation
 on behalf of a local investor. Your goal: build rapport, understand the seller's situation,
@@ -90,13 +98,14 @@ def _parse_response(text: str) -> Dict[str, Any]:
 
 
 def _call_claude(messages: List[Dict[str, Any]]) -> str:
-    response = _client.messages.create(
-        model=settings.model,
+    """Despite the name, this now calls OpenAI — kept for caller compatibility."""
+    full = [{"role": "system", "content": _SYSTEM}, *messages]
+    response = _get_client().chat.completions.create(
+        model=settings.openai_model,
         max_tokens=256,
-        system=_SYSTEM,
-        messages=messages,
+        messages=full,
     )
-    return next((b.text for b in response.content if hasattr(b, "text")), "")
+    return (response.choices[0].message.content or "").strip()
 
 
 def start_outreach(lead_id: UUID, repos: Repositories) -> Dict[str, Any]:
@@ -114,11 +123,18 @@ def start_outreach(lead_id: UUID, repos: Repositories) -> Dict[str, Any]:
     sms_text = parsed["sms"]
 
     repos.messages.append(lead_id, MessageRole.AGENT, sms_text)
-    result = send_sms(to=contact.phones[0], body=sms_text)
     repos.leads.update_status(lead_id, LeadStatus.OUTREACH)
 
-    logger.info("outreach_sent", lead_id=str(lead_id), message_id=result.get("message_id"))
-    return {"sent": True, "message_id": result.get("message_id"), "sms": sms_text}
+    message_id = ""
+    try:
+        result = send_sms(to=contact.phones[0], body=sms_text)
+        message_id = result.get("message_id", "")
+        logger.info("outreach_sent", lead_id=str(lead_id), message_id=message_id)
+        return {"sent": True, "message_id": message_id, "sms": sms_text}
+    except Exception as exc:
+        logger.warning("outreach.sms_failed", lead_id=str(lead_id), error=str(exc)[:200])
+        # Conversation still recorded — investor can use Simulate Reply to drive the demo
+        return {"sent": False, "sms": sms_text, "sms_error": str(exc)[:200]}
 
 
 def handle_reply(lead_id: UUID, inbound_body: str, repos: Repositories) -> Dict[str, Any]:
@@ -138,7 +154,10 @@ def handle_reply(lead_id: UUID, inbound_body: str, repos: Repositories) -> Dict[
 
     if sms_text and contact.phones:
         repos.messages.append(lead_id, MessageRole.AGENT, sms_text)
-        send_sms(to=contact.phones[0], body=sms_text)
+        try:
+            send_sms(to=contact.phones[0], body=sms_text)
+        except Exception as exc:
+            logger.warning("reply.sms_failed", lead_id=str(lead_id), error=str(exc)[:200])
 
     if parsed["agreed_price"]:
         repos.leads.update_status(lead_id, LeadStatus.NEGOTIATING, agreed_price=parsed["agreed_price"])

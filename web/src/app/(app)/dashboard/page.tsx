@@ -3,16 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { DemoState } from "@/lib/types";
 import { fmt$$, fmtDate } from "@/lib/utils";
 import {
   Play, Loader2, ChevronDown, MapPin, MessageSquare, Phone,
   Sparkles, FileSignature, CheckCircle2, Clock, ArrowRight,
-  Users, Target, Handshake, FileCheck, Zap,
+  Users, Target, Handshake, FileCheck,
 } from "lucide-react";
 import { LiveDot } from "@/components/LiveDot";
 import { CountUp } from "@/components/CountUp";
 import { mockContracts, type MockContract } from "@/lib/mockData";
+
+interface ConvMsg {
+  role: "agent" | "owner";
+  body: string;
+  sent_at: string;
+}
 
 const US_STATES = [
   ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],
@@ -84,11 +89,16 @@ export default function MissionControlPage() {
     notify_phone: "",
   });
 
-  const [demo, setDemo] = useState<DemoState | null>(null);
+  const [leadId, setLeadId] = useState<string | null>(null);
+  const [conversation, setConversation] = useState<ConvMsg[]>([]);
+  const [negotiationStatus, setNegotiationStatus] = useState<string>("idle");
+  const [agreedPrice, setAgreedPrice] = useState<number | null>(null);
+  const [recipientPhone, setRecipientPhone] = useState<string>("");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>(IDLE_METRICS);
   const [contracts, setContracts] = useState<MockContract[]>([]);
+  const startedAtRef = useRef<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -109,74 +119,93 @@ export default function MissionControlPage() {
     );
 
   const startDemo = async () => {
+    stop();
     setStarting(true);
     setError(null);
-    setDemo(null);
+    setLeadId(null);
+    setConversation([]);
+    setNegotiationStatus("scraping");
+    setAgreedPrice(null);
+    startedAtRef.current = Date.now() / 1000;
     setMetrics(DEMO_BASELINE.map((m) => ({ ...m, value: Math.round(m.value * 0.6) })));
 
-    try {
-      const res = await api.demo.start(form.notify_phone.trim() || undefined);
+    // Tick metrics with growth so the dashboard feels alive while we wait for SMS
+    tickRef.current = setInterval(() => {
+      setMetrics((prev) => prev.map((m) => {
+        const target = DEMO_BASELINE.find((d) => d.key === m.key)?.value ?? m.value;
+        if (m.value >= target) return m;
+        const inc = Math.max(1, Math.ceil((target - m.value) * 0.04));
+        return { ...m, value: Math.min(target, m.value + Math.ceil(Math.random() * inc)) };
+      }));
+    }, 350);
 
-      // Poll real demo state from backend
+    try {
+      const res = await api.demo.negotiate({
+        recipient_phone: form.notify_phone.trim() || undefined,
+        owner_name: "Maria Hernandez",
+        address: `${form.city || "Atlanta"} demo property`,
+        city: form.city || "Atlanta",
+        state: form.state || "GA",
+        arv: 268_000,
+        offer_price: Math.round((form.min_price + form.max_price) / 2),
+      });
+      setLeadId(res.lead_id);
+      setRecipientPhone(res.recipient_phone);
+      setNegotiationStatus("outreach");
+
+      if (res.opening_message) {
+        setConversation([{ role: "agent", body: res.opening_message, sent_at: new Date().toISOString() }]);
+      }
+      if (res.error) {
+        setError(res.error);
+      }
+
+      // Poll the live conversation every 2s — picks up owner replies +
+      // AI counter-texts as they happen
       pollRef.current = setInterval(async () => {
         try {
-          const s = await api.demo.status(res.demo_id);
-          setDemo(s);
-          if (s.is_complete) {
-            stop();
-            // Add the demo's contract to the contracts list
-            if (s.contract_url) {
-              setContracts((prev) => [
-                {
-                  id: s.demo_id,
-                  lead_id: "demo-lead",
-                  address: "3857 N High St",
-                  city: "Atlanta",
-                  state: "GA",
-                  owner_name: "Maria Hernandez",
-                  agreed_price: 208_000,
-                  status: "sent",
-                  sent_at: new Date().toISOString(),
-                  completed_at: null,
-                  envelope_id: s.demo_id,
-                },
-                ...prev,
-              ]);
-            }
-          }
-        } catch (e) {
-          stop();
-          setError(e instanceof Error ? e.message : "Lost connection to demo");
-        }
-      }, 800);
+          const c = await api.demo.conversation(res.lead_id);
+          setConversation(c.messages);
+          setNegotiationStatus(c.status);
+          if (c.agreed_price) setAgreedPrice(c.agreed_price);
 
-      // Tick metrics independently — pulses growth as stages run
-      tickRef.current = setInterval(() => {
-        setMetrics((prev) => {
-          if (!demo) return prev;
-          const runningStage = demo.stages.find((s) => s.status === "running")?.name;
-          if (!runningStage) return prev;
-          const growth = STAGE_METRIC_GROWTH[runningStage] ?? {};
-          return prev.map((m) => {
-            const inc = growth[m.key];
-            if (!inc) return m;
-            const target = (DEMO_BASELINE.find((d) => d.key === m.key)?.value ?? m.value) * 1.05;
-            const next = Math.min(target, m.value + Math.ceil(Math.random() * inc));
-            return { ...m, value: Math.round(next) };
-          });
-        });
-      }, 700);
+          // Once a deal is agreed, drop a contract into the list and stop polling
+          if (c.status === "negotiating" && c.agreed_price !== null) {
+            const agreed = c.agreed_price;
+            setContracts((prev) => {
+              if (prev.some((p) => p.id === c.lead_id)) return prev;
+              const next: MockContract = {
+                id: c.lead_id,
+                lead_id: c.lead_id,
+                address: `${form.city || "Atlanta"} demo property`,
+                city: form.city || "Atlanta",
+                state: form.state || "GA",
+                owner_name: "Maria Hernandez",
+                agreed_price: agreed,
+                status: "sent",
+                sent_at: new Date().toISOString(),
+                completed_at: null,
+                envelope_id: c.lead_id,
+              };
+              return [next, ...prev];
+            });
+          }
+          if (c.status === "dead") stop();
+        } catch (e) {
+          // Keep polling — transient errors shouldn't kill the live view
+        }
+      }, 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      stop();
     } finally {
       setStarting(false);
     }
   };
 
-  const isRunning = demo && !demo.is_complete;
-  const isComplete = demo?.is_complete;
-  const sms = demo?.sms_sent ?? [];
-  const elapsed = demo ? Math.max(0, Math.round(Date.now() / 1000 - demo.started_at)) : 0;
+  const isRunning = !!leadId && negotiationStatus !== "dead" && !agreedPrice;
+  const isComplete = !!agreedPrice;
+  const elapsed = leadId ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
@@ -196,7 +225,7 @@ export default function MissionControlPage() {
             {isRunning
               ? `Pipeline running — ${elapsed}s elapsed.`
               : isComplete
-                ? `Closed in ${elapsed}s. ${sms.filter((m) => m.delivered).length} of ${sms.length} texts delivered.`
+                ? `Deal agreed at $${agreedPrice?.toLocaleString()} in ${elapsed}s. Contract sent to your inbox.`
                 : "Set your buy box, hit Start, watch the funnel move in real time."}
           </p>
         </div>
@@ -222,8 +251,21 @@ export default function MissionControlPage() {
             metrics={metrics}
             isRunning={!!isRunning}
             isComplete={!!isComplete}
-            currentStage={demo?.stages.find((s) => s.status === "running")?.label}
-            sms={sms}
+            conversation={conversation}
+            recipientPhone={recipientPhone}
+            agreedPrice={agreedPrice}
+            leadId={leadId}
+            onSimulateReply={async (body) => {
+              if (!leadId) return;
+              try {
+                const c = await api.demo.simulateReply(leadId, body);
+                setConversation(c.messages);
+                setNegotiationStatus(c.status);
+                if (c.agreed_price) setAgreedPrice(c.agreed_price);
+              } catch {
+                /* swallow — poll will catch any state changes */
+              }
+            }}
           />
         </div>
 
@@ -358,15 +400,45 @@ function BuyBoxCard({
 }
 
 // ─── LIVE UPDATES ────────────────────────────────────────────────────────────
+const SUGGESTED_REPLIES = [
+  "Maybe — what's your number?",
+  "I'd need at least $215k.",
+  "Send me the offer in writing.",
+  "Yes! Let's do it.",
+];
+
 function LiveUpdatesCard({
-  metrics, isRunning, isComplete, currentStage, sms,
+  metrics, isRunning, isComplete, conversation, recipientPhone, agreedPrice,
+  onSimulateReply, leadId,
 }: {
   metrics: Metric[];
   isRunning: boolean;
   isComplete: boolean;
-  currentStage: string | undefined;
-  sms: DemoState["sms_sent"];
+  conversation: ConvMsg[];
+  recipientPhone: string;
+  agreedPrice: number | null;
+  onSimulateReply: (body: string) => void;
+  leadId: string | null;
 }) {
+  const [draft, setDraft] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [conversation]);
+
+  const sendReply = async (text: string) => {
+    const body = text.trim();
+    if (!body || thinking || !leadId) return;
+    setThinking(true);
+    try {
+      await onSimulateReply(body);
+      setDraft("");
+    } finally {
+      setThinking(false);
+    }
+  };
+
   return (
     <div className="relative overflow-hidden rounded-2xl shadow-xl shadow-blue-500/20 h-full">
       <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-cyan-600 to-emerald-600 animate-gradient" />
@@ -381,38 +453,100 @@ function LiveUpdatesCard({
             <p className="text-xs font-semibold uppercase tracking-wider opacity-90">Live Pipeline</p>
           </div>
           {isRunning && <LiveDot color="red" label="LIVE" />}
-          {isComplete && <LiveDot color="green" label="DONE" />}
+          {isComplete && <LiveDot color="green" label="DEAL" />}
         </div>
-
-        {currentStage && (
-          <p className="text-[11px] mb-4 opacity-90 italic">→ {currentStage}…</p>
-        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4">
           {metrics.map((m) => <MetricChip key={m.key} m={m} live={isRunning} />)}
         </div>
 
-        {/* SMS feed (only shown once messages exist) */}
+        {/* Live AI ↔ Owner conversation */}
         <div className="flex-1 min-h-0">
-          {sms.length === 0 ? (
-            <div className="bg-black/20 backdrop-blur-md rounded-xl p-4 border border-white/20 text-center">
-              <p className="text-xs opacity-90">
-                {isRunning ? "Waiting for first SMS…" : "Click Start Pipeline to begin"}
+          {conversation.length === 0 ? (
+            <div className="bg-black/25 backdrop-blur-md rounded-xl p-4 border border-white/30 text-center">
+              <p className="text-xs">
+                {isRunning ? "Waiting for AI agent to send opening text…" : "Click Start Pipeline to fire the negotiation bot"}
               </p>
             </div>
           ) : (
-            <div className="bg-black/20 backdrop-blur-md rounded-xl p-3 border border-white/20 space-y-2 max-h-[180px] overflow-y-auto">
-              <p className="text-[10px] font-bold uppercase tracking-wider opacity-80 mb-1">Texts sent ({sms.filter((m) => m.delivered).length}/{sms.length} delivered)</p>
-              {sms.map((m, i) => (
-                <div key={i} className="animate-slide-in">
-                  <div className="flex items-center gap-1.5 text-[10px] opacity-80 mb-0.5">
-                    <Phone size={9} />
-                    <span className="font-bold uppercase tracking-wide">{m.kind}</span>
-                    {m.delivered && <CheckCircle2 size={10} className="ml-auto" />}
+            <div className="bg-black/25 backdrop-blur-md rounded-xl p-3 border border-white/30 flex flex-col">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-90">
+                  Negotiating with {recipientPhone || "owner"}
+                </p>
+                {agreedPrice && (
+                  <span className="text-[10px] font-bold bg-emerald-500/30 border border-emerald-400/50 text-white px-2 py-0.5 rounded-full">
+                    ✓ DEAL @ ${agreedPrice.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <div ref={scrollRef} className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {conversation.map((m, i) => (
+                  <div key={i} className={`flex animate-slide-in ${m.role === "agent" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[80%] flex flex-col ${m.role === "agent" ? "items-end" : "items-start"} gap-0.5`}>
+                      <span className="text-[9px] font-bold uppercase tracking-wider opacity-70 px-1">
+                        {m.role === "agent" ? "AI Agent" : "Owner"}
+                      </span>
+                      <div className={`px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+                        m.role === "agent"
+                          ? "bg-white text-zinc-900 rounded-br-sm shadow-sm"
+                          : "bg-white/15 border border-white/20 text-white rounded-bl-sm"
+                      }`}>
+                        {m.body}
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs leading-relaxed">{m.body}</p>
+                ))}
+                {isRunning && conversation.length > 0 && conversation[conversation.length - 1].role === "agent" && (
+                  <div className="flex justify-start animate-fade-in">
+                    <div className="bg-white/15 border border-white/20 px-3 py-2 rounded-2xl rounded-bl-sm">
+                      <div className="flex gap-1">
+                        <span className="h-1 w-1 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="h-1 w-1 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="h-1 w-1 rounded-full bg-white/80 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Simulated reply controls — let investors drive the conversation
+                  even if their phone isn't on the same Telnyx account */}
+              {leadId && !agreedPrice && (
+                <div className="pt-2 mt-2 border-t border-white/15 space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    {SUGGESTED_REPLIES.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => sendReply(s)}
+                        disabled={thinking}
+                        className="text-[10px] font-medium bg-white/15 hover:bg-white/25 border border-white/20 text-white px-2 py-1 rounded-md transition-colors disabled:opacity-40"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendReply(draft); } }}
+                      placeholder="Reply as the owner…"
+                      disabled={thinking}
+                      className="flex-1 bg-white/10 border border-white/25 text-white placeholder-white/60 text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-white/50"
+                    />
+                    <button
+                      onClick={() => sendReply(draft)}
+                      disabled={thinking || !draft.trim()}
+                      className="bg-white text-blue-700 disabled:bg-white/40 disabled:text-white/60 disabled:cursor-not-allowed text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      {thinking ? "…" : "Send"}
+                    </button>
+                  </div>
                 </div>
-              ))}
+              )}
+              <p className="text-[9px] opacity-70 text-center pt-2 mt-1 border-t border-white/15">
+                Reply on your phone OR use the buttons above — AI counters live
+              </p>
             </div>
           )}
         </div>

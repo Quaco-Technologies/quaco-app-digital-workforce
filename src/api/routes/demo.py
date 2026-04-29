@@ -3,15 +3,18 @@ from __future__ import annotations
 import asyncio
 import time
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from src.agents import negotiation
 from src.api.deps import get_repos
 from src.api.middleware.auth import get_investor_id
 from src.core.config import settings
 from src.core.logging import get_logger
+from src.models.contact import Contact
+from src.models.lead import Lead, LeadStatus
 from src.repositories import Repositories
 from src.tools.telenyx_tools import send_sms
 
@@ -189,3 +192,181 @@ def get_demo(demo_id: str) -> DemoState:
     if not state:
         raise HTTPException(status_code=404, detail="demo not found")
     return state
+
+
+# ─── Real AI negotiation demo ────────────────────────────────────────────────
+# Seeds a real Lead + Contact in the DB with the recipient phone as the
+# "owner", then fires the actual negotiation agent. The agent's opening SMS
+# goes to the recipient's phone via Telenyx; their replies hit the existing
+# /webhooks/sms endpoint, run through negotiation.handle_reply, and get a
+# real Claude-generated counter-text. The frontend polls
+# /demo/conversation/{lead_id} to render the live conversation.
+
+class StartNegotiationRequest(BaseModel):
+    recipient_phone: Optional[str] = None
+    owner_name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    arv: Optional[int] = None
+    offer_price: Optional[int] = None
+
+
+class StartNegotiationResponse(BaseModel):
+    lead_id: str
+    recipient_phone: str
+    sent: bool
+    opening_message: str
+    error: Optional[str] = None
+
+
+@router.post("/negotiate", response_model=StartNegotiationResponse)
+def start_real_negotiation(
+    req: StartNegotiationRequest,
+    investor_id: UUID = Depends(get_investor_id),
+    repos: Repositories = Depends(get_repos),
+) -> StartNegotiationResponse:
+    """Seed a fake lead with the user's phone and fire the real AI negotiation bot."""
+    phone = (req.recipient_phone or settings.telenyx_test_recipient or "").strip()
+    if not phone:
+        raise HTTPException(
+            status_code=400,
+            detail="No recipient phone — pass `recipient_phone` or set TELENYX_TEST_RECIPIENT",
+        )
+    if not settings.telenyx_api_key or not settings.telenyx_from_number:
+        raise HTTPException(
+            status_code=400,
+            detail="Telenyx not configured — TELENYX_API_KEY / TELENYX_FROM_NUMBER must be set",
+        )
+
+    address = req.address or "3857 N High St"
+    city = req.city or "Atlanta"
+    state = req.state or "GA"
+    arv = req.arv or 268_000
+    offer_price = req.offer_price or 187_500
+
+    # 1. Create the lead — use a unique source so we don't collide with a real one
+    source = f"demo_{uuid4().hex[:8]}"
+    lead = Lead(
+        source=source,
+        address=address,
+        city=city,
+        state=state,
+        zip="30301",
+        owner_name=req.owner_name or "Maria Hernandez",
+        bedrooms=3, bathrooms=2.0, sqft=1850, year_built=1972,
+        arv=arv,
+        offer_price=offer_price,
+        assessed_value=215_000,
+        photo_condition="fair",
+        investor_id=investor_id,
+        status=LeadStatus.ANALYZED,
+    )
+
+    row = lead.model_dump(mode="json", exclude_none=True, exclude={"id", "created_at", "updated_at"})
+    res = repos.db.table("leads").insert(row).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create demo lead")
+    lead_id = UUID(res.data[0]["id"])
+
+    # 2. Create the contact with the user's phone
+    contact = Contact(
+        lead_id=lead_id,
+        owner_name=req.owner_name or "Maria Hernandez",
+        phones=[phone],
+        emails=[],
+        confidence=0.95,
+    )
+    repos.contacts.upsert(contact)
+
+    # 3. Fire the real negotiation agent — sends real SMS to the user's phone
+    try:
+        result = negotiation.start_outreach(lead_id, repos)
+    except Exception as exc:
+        logger.warning("demo.negotiate.outreach_failed", lead_id=str(lead_id), error=str(exc)[:200])
+        return StartNegotiationResponse(
+            lead_id=str(lead_id),
+            recipient_phone=phone,
+            sent=False,
+            opening_message="",
+            error=str(exc)[:200],
+        )
+
+    if "error" in result:
+        return StartNegotiationResponse(
+            lead_id=str(lead_id),
+            recipient_phone=phone,
+            sent=False,
+            opening_message="",
+            error=result["error"],
+        )
+
+    sms_error = result.get("sms_error")
+    return StartNegotiationResponse(
+        lead_id=str(lead_id),
+        recipient_phone=phone,
+        sent=bool(result.get("sent")),
+        opening_message=result.get("sms", ""),
+        error=sms_error,
+    )
+
+
+class ConversationMessage(BaseModel):
+    role: str  # "agent" | "owner"
+    body: str
+    sent_at: str
+
+
+class ConversationResponse(BaseModel):
+    lead_id: str
+    status: str
+    agreed_price: Optional[int] = None
+    messages: list[ConversationMessage]
+
+
+class SimulateReplyRequest(BaseModel):
+    body: str
+
+
+@router.post("/conversation/{lead_id}/simulate_reply", response_model=ConversationResponse)
+def simulate_owner_reply(
+    lead_id: UUID,
+    req: SimulateReplyRequest,
+    repos: Repositories = Depends(get_repos),
+) -> ConversationResponse:
+    """Pretend the owner just texted us. Drives the real AI agent through
+    handle_reply — useful for demoing live negotiation when Telnyx is
+    misconfigured or you want to script the conversation."""
+    if not req.body.strip():
+        raise HTTPException(status_code=400, detail="empty body")
+    try:
+        negotiation.handle_reply(lead_id, req.body.strip(), repos)
+    except Exception as exc:
+        logger.warning("demo.simulate_reply.error", lead_id=str(lead_id), error=str(exc)[:200])
+    return get_conversation(lead_id, repos)
+
+
+@router.get("/conversation/{lead_id}", response_model=ConversationResponse)
+def get_conversation(
+    lead_id: UUID,
+    repos: Repositories = Depends(get_repos),
+) -> ConversationResponse:
+    """Fetch the live conversation for a demo lead — frontend polls this."""
+    lead = repos.leads.get(lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    messages = repos.messages.get_conversation(lead_id)
+    return ConversationResponse(
+        lead_id=str(lead_id),
+        status=lead.status.value if hasattr(lead.status, "value") else str(lead.status),
+        agreed_price=lead.agreed_price,
+        messages=[
+            ConversationMessage(
+                role=m.role.value if hasattr(m.role, "value") else str(m.role),
+                body=m.body,
+                sent_at=m.sent_at.isoformat() if m.sent_at else "",
+            )
+            for m in messages
+        ],
+    )

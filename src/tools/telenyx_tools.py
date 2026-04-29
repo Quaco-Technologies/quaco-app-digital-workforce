@@ -27,7 +27,8 @@ def send_sms(to: str, body: str, from_number: str | None = None) -> dict:
         "text": body,
     }
     resp = httpx.post(f"{_BASE}/messages", json=payload, headers=_HEADERS, timeout=15)
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Telnyx {resp.status_code}: {resp.text}")
     data = resp.json().get("data", {})
     return {
         "message_id": data.get("id", ""),

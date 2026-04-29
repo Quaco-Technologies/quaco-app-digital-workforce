@@ -123,6 +123,28 @@ export const api = {
         body: JSON.stringify({ recipient_phone }),
       }),
     status: (demoId: string) => request<DemoState>(`/demo/status/${demoId}`),
+    negotiate: (body: {
+      recipient_phone?: string; owner_name?: string;
+      address?: string; city?: string; state?: string;
+      arv?: number; offer_price?: number;
+    }) => request<{
+      lead_id: string; recipient_phone: string; sent: boolean;
+      opening_message: string; error: string | null;
+    }>("/demo/negotiate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+    conversation: (leadId: string) => request<{
+      lead_id: string; status: string; agreed_price: number | null;
+      messages: Array<{ role: "agent" | "owner"; body: string; sent_at: string }>;
+    }>(`/demo/conversation/${leadId}`),
+    simulateReply: (leadId: string, body: string) => request<{
+      lead_id: string; status: string; agreed_price: number | null;
+      messages: Array<{ role: "agent" | "owner"; body: string; sent_at: string }>;
+    }>(`/demo/conversation/${leadId}/simulate_reply`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
   },
 
   outreach: {
