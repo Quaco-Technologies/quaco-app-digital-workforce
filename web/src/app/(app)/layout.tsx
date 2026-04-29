@@ -34,12 +34,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen relative">
-      {/* Ambient blue→emerald gradient backdrop, washes across whole app */}
-      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-blue-50 via-white to-emerald-50" />
-      <div className="fixed inset-0 -z-10 pointer-events-none">
-        <div className="absolute -top-32 -left-32 w-[480px] h-[480px] bg-blue-200/30 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 right-0 w-[420px] h-[420px] bg-emerald-200/25 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 w-[380px] h-[380px] bg-cyan-200/20 rounded-full blur-3xl" />
+      {/* Subtle gradient backdrop — restrained, just enough warmth */}
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-50 via-white to-slate-50" />
+      <div className="fixed inset-0 -z-10 pointer-events-none opacity-40">
+        <div className="absolute -top-32 -left-32 w-[420px] h-[420px] bg-blue-100/40 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-[380px] h-[380px] bg-emerald-100/30 rounded-full blur-3xl" />
       </div>
       {/* Desktop sidebar — hidden on mobile */}
       <div className="hidden md:block">
