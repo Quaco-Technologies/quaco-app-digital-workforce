@@ -46,7 +46,7 @@ export function MarketSwitcher({ current, onChange }: Props) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-3 py-2 transition-colors text-left min-w-[200px] shadow-sm"
+        className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 transition-all text-left min-w-[200px] shadow-[0_1px_3px_rgba(15,23,42,0.06),0_4px_12px_-4px_rgba(15,23,42,0.08)] hover:shadow-[0_2px_6px_rgba(15,23,42,0.08),0_8px_20px_-4px_rgba(15,23,42,0.12)]"
       >
         {isAll ? (
           <Globe size={14} className="text-slate-500 shrink-0" />
@@ -63,7 +63,7 @@ export function MarketSwitcher({ current, onChange }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden animate-fade-up">
+        <div className="absolute right-0 top-full mt-1 w-72 bg-white rounded-xl shadow-[0_8px_32px_-8px_rgba(15,23,42,0.16),0_0_0_1px_rgba(15,23,42,0.04)] z-30 overflow-hidden animate-fade-up">
           <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/60">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Switch market</p>
           </div>

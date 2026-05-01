@@ -384,7 +384,7 @@ function BuyBoxCard({
   const labelClass = "block text-[11px] font-medium text-slate-500 mb-1";
 
   return (
-    <div className="surface rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="surface rounded-xl p-5">
       <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight mb-5">Buy Box</h2>
 
       <div className="space-y-3">
@@ -677,7 +677,7 @@ function ContractsRow({ contracts }: { contracts: MockContract[] }) {
   const pending = contracts.filter((c) => c.status === "sent");
   const signed = contracts.filter((c) => c.status === "completed");
   return (
-    <div className="surface rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="surface rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Ready to Sign</h3>
@@ -700,7 +700,7 @@ function ContractsRow({ contracts }: { contracts: MockContract[] }) {
               <Link
                 key={c.id}
                 href={`/leads/${c.lead_id}`}
-                className="block surface rounded-lg px-3 py-2.5 hover:border-slate-300 hover:shadow-sm transition-all"
+                className="block bg-white rounded-lg px-3 py-2.5 shadow-[0_1px_3px_rgba(15,23,42,0.06),0_4px_12px_-4px_rgba(15,23,42,0.08)] hover:shadow-[0_2px_6px_rgba(15,23,42,0.08),0_8px_20px_-4px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold text-slate-900 leading-tight line-clamp-1">{c.address}</p>
