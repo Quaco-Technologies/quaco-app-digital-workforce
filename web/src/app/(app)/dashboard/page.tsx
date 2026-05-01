@@ -283,7 +283,7 @@ export default function MissionControlPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={startDemo} disabled={isRunning} className="btn-pill-primary">
             {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={11} fill="currentColor" />}
-            {isRunning ? "Running" : "Run Pipeline"}
+            {isRunning ? "Running" : "Go"}
           </button>
           <Link href="/board" className="btn-pill">
             <FileSignature size={12} strokeWidth={1.75} />
@@ -429,16 +429,17 @@ function BuyBoxCard({
           </div>
         </div>
 
-        <div className="pt-3 border-t border-slate-100">
-          <input
-            type="tel"
-            value={form.notify_phone}
-            onChange={(e) => set("notify_phone", e.target.value)}
-            placeholder="Phone number for live SMS"
-            className={inputClass}
-          />
-        </div>
       </div>
+
+      <button
+        onClick={startDemo}
+        disabled={isRunning}
+        className="btn-pill-primary mt-5 w-full justify-center"
+      >
+        {isRunning
+          ? <><Loader2 size={13} className="animate-spin" /> Running…</>
+          : <><Play size={12} fill="currentColor" /> Go</>}
+      </button>
 
       {error && (
         <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mt-3">{error}</p>
@@ -610,7 +611,7 @@ function LiveFeedCard({
 
       {/* Idle state */}
       {phase === "idle" && (
-        <p className="text-xs text-slate-400 text-center pt-2">Press Run Pipeline to begin.</p>
+        <p className="text-xs text-slate-400 text-center pt-2">Press Go to begin.</p>
       )}
     </div>
   );
