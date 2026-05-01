@@ -253,12 +253,12 @@ export default function MissionControlPage() {
   const elapsed = phase !== "idle" ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
-    <div className="p-4 sm:p-5 max-w-7xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Mercury-style hero: greeting + market chip + action pill row */}
-      <div className="mb-4">
-        <div className="flex items-end justify-between gap-3 mb-3">
+      <div className="mb-6">
+        <div className="flex items-end justify-between gap-3 mb-4">
           <div>
-            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-[26px] font-semibold text-slate-900 tracking-tight leading-tight">
               {phase === "idle" ? "Welcome back" : phase === "stages" ? "Pipeline running" : agreedPrice ? "Deal agreed" : "Negotiating"}
             </h1>
             <p className="text-[13px] text-slate-500 mt-0.5 flex items-center gap-2">
@@ -299,34 +299,43 @@ export default function MissionControlPage() {
         </div>
       </div>
 
-      {/* Layout:
-          LEFT (col-span-4): Buy Box on top + Network Activity below (the
-            original layout the user wanted to keep)
-          RIGHT (col-span-8): Live Pipeline + Ready to Sign + Analytics stacked */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 lg:items-stretch">
-        <div className="lg:col-span-4 flex flex-col gap-3 lg:gap-4">
-          <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
-          <div className="flex-1 min-h-0">
-            <LiveMessageFeed heading="Network Activity" />
+      {/* New layout:
+          LEFT (col-span-8): grid of [Buy Box | Live Pipeline] then [Ready to Sign] then [Analytics]
+          RIGHT (col-span-4): Network Activity, full-height column */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 lg:items-stretch">
+        {/* LEFT side: 2-col sub-grid for the top row, then full-width rows below */}
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:auto-rows-min">
+          <div className="md:col-span-1">
+            <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
+          </div>
+          <div className="md:col-span-1">
+            <LiveFeedCard
+              phase={phase}
+              metrics={metrics}
+              conversation={conversation}
+              recipientPhone={recipientPhone}
+              agreedPrice={agreedPrice}
+              contractEmail={contractEmail}
+              contractDelivered={contractDelivered}
+              contractSigned={contractSigned}
+              contractUrl={contractUrl}
+              leadId={leadId}
+              onStagesComplete={fireNegotiation}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <ContractsRow contracts={contracts} />
+          </div>
+          <div className="md:col-span-2">
+            <AnalyticsCard />
           </div>
         </div>
 
-        <div className="lg:col-span-8 flex flex-col gap-3 lg:gap-4">
-          <LiveFeedCard
-            phase={phase}
-            metrics={metrics}
-            conversation={conversation}
-            recipientPhone={recipientPhone}
-            agreedPrice={agreedPrice}
-            contractEmail={contractEmail}
-            contractDelivered={contractDelivered}
-            contractSigned={contractSigned}
-            contractUrl={contractUrl}
-            leadId={leadId}
-            onStagesComplete={fireNegotiation}
-          />
-          <ContractsRow contracts={contracts} />
-          <AnalyticsCard />
+        {/* RIGHT side: Network Activity, full height of the row */}
+        <div className="lg:col-span-4">
+          <div className="h-full">
+            <LiveMessageFeed heading="Network Activity" />
+          </div>
         </div>
       </div>
     </div>
@@ -464,7 +473,7 @@ function LiveFeedCard({
   }, [conversation]);
 
   return (
-    <div className="surface p-4">
+    <div className="surface p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-[15px] font-medium text-slate-900 tracking-tight">Live Pipeline</h3>
