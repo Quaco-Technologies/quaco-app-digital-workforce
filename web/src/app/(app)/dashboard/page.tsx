@@ -464,11 +464,11 @@ function BuyBoxCard({
       <button
         onClick={startDemo}
         disabled={isRunning}
-        className="btn-primary mt-4 w-full text-[13px] font-medium py-2.5 rounded-lg flex items-center justify-center gap-2"
+        className="btn-primary mt-5 w-full text-[14px] font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 tracking-tight"
       >
         {isRunning
-          ? <><Loader2 size={13} className="animate-spin" /> Running pipeline…</>
-          : <><Play size={12} fill="currentColor" /> Run Pipeline</>}
+          ? <><Loader2 size={14} className="animate-spin" /> Running pipeline…</>
+          : <><Play size={13} fill="currentColor" /> Run Pipeline</>}
       </button>
     </div>
   );
@@ -499,26 +499,31 @@ function LiveFeedCard({
   }, [conversation]);
 
   return (
-    <div className="surface rounded-2xl p-5 sm:p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Live Pipeline</h3>
+    <div className="surface rounded-2xl p-5 sm:p-6 shadow-sm relative overflow-hidden">
+      {/* Branded top stripe — gives the card identity */}
+      <span className="absolute top-0 left-0 right-0 h-[2px] bg-brand-gradient" />
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Live Pipeline</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">Updated continuously · click any tile</p>
+        </div>
         {phase !== "idle" ? (
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-rose-600">
-            <span className="relative flex h-1.5 w-1.5">
+          <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full ring-1 ring-rose-200">
+            <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
             </span>
             Live
           </span>
         ) : (
-          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">Idle</span>
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Idle</span>
         )}
       </div>
 
-      {/* 4 pulsating metric rows — clickable */}
-      <div className="space-y-2 mb-4">
+      {/* 2×2 grid of big metric tiles — clickable */}
+      <div className="grid grid-cols-2 gap-2.5 mb-4">
         {metrics.map((m) => (
-          <MetricRow
+          <MetricTile
             key={m.key}
             m={m}
             active={phase !== "idle"}
@@ -639,24 +644,48 @@ function LiveFeedCard({
   );
 }
 
-function MetricRow({ m, active, onClick }: { m: Metric; active: boolean; onClick: () => void }) {
+// Tile-style metric: chunky 2×2 grid card with a big mono number, uppercase
+// tracked label, and a pulsing colored dot. Hover lifts and adds an accent
+// border tint.
+const TILE_GRADIENT: Record<Metric["color"], string> = {
+  slate:   "from-slate-50 to-white",
+  blue:    "from-sky-50/80 to-white",
+  amber:   "from-amber-50/80 to-white",
+  emerald: "from-emerald-50/80 to-white",
+};
+const TILE_HOVER: Record<Metric["color"], string> = {
+  slate:   "hover:border-slate-300",
+  blue:    "hover:border-sky-300",
+  amber:   "hover:border-amber-300",
+  emerald: "hover:border-emerald-300",
+};
+
+function MetricTile({ m, active, onClick }: { m: Metric; active: boolean; onClick: () => void }) {
   const c = COLOR[m.color];
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-between py-2.5 px-3 rounded-md hover:bg-slate-50 transition-colors group text-left"
+      className={`relative text-left rounded-xl border border-slate-200 bg-gradient-to-br ${TILE_GRADIENT[m.color]} ${TILE_HOVER[m.color]} px-4 pt-3 pb-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-8px_rgba(15,23,42,0.08)] group overflow-hidden`}
     >
-      <div className="flex items-center gap-3">
-        <span className="relative flex h-1.5 w-1.5">
-          {active && <span className={`absolute inline-flex h-full w-full rounded-full ${c.ring} animate-ping`} />}
-          <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${c.dot}`} />
-        </span>
-        <span className="text-[13px] text-slate-700 group-hover:text-slate-900">{m.label}</span>
-      </div>
-      <span className={`text-[15px] font-semibold tabular-nums tracking-tight ${c.text}`}>
-        <CountUp value={m.value} durationMs={500} />
+      {/* Pulsing dot, top-right */}
+      <span className="absolute top-3 right-3 flex h-1.5 w-1.5">
+        {active && <span className={`absolute inline-flex h-full w-full rounded-full ${c.ring} animate-ping`} />}
+        <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${c.dot}`} />
       </span>
+
+      {/* Label */}
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-1.5">
+        {m.label}
+      </p>
+
+      {/* Big mono number */}
+      <p className={`num-display text-[32px] font-semibold tabular-nums leading-none ${c.text}`}>
+        <CountUp value={m.value} durationMs={500} />
+      </p>
+
+      {/* Subtle gradient sheen at bottom on hover */}
+      <span className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
     </button>
   );
 }
