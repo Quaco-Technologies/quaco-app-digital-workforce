@@ -92,9 +92,14 @@ export function LiveMessageFeed({ heading = "Network Activity" }: { heading?: st
         </span>
       </div>
 
-      {/* Three separate cards stacked, scrollable for older */}
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-3 scroll-smooth">
-        {shown.map((s, i) => <SellerConversation key={`${s.owner}-${i}`} seller={s} />)}
+      {/* Three separate cards stacked — each flexes to fill 1/3 of the
+          remaining vertical space so the column total matches the right side */}
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
+        {shown.map((s, i) => (
+          <div key={`${s.owner}-${i}`} className="flex-1 min-h-0">
+            <SellerConversation seller={s} />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -143,7 +148,7 @@ function SellerConversation({ seller }: { seller: SellerScript }) {
   }, [messages, typing]);
 
   return (
-    <div className="surface p-3 overflow-hidden flex flex-col h-[180px]">
+    <div className="surface p-3 overflow-hidden flex flex-col h-full">
       <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-2 shrink-0">
         <span className="font-medium text-slate-600">{seller.owner}</span>
         <span>·</span>
