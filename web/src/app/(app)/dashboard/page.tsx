@@ -653,47 +653,38 @@ function ContractsRow({ contracts }: { contracts: MockContract[] }) {
       </div>
 
       {contracts.length === 0 ? (
-        <p className="text-xs text-slate-400 text-center py-8">
+        <p className="text-xs text-slate-400 text-center py-6">
           Contracts land here once the AI agent closes a deal.
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {contracts.slice(0, 6).map((c) => {
+        // Compact one-row layout: 3 cards across, no big Review button — entire
+        // card is clickable. Keeps the right column flush with Network Activity.
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+          {contracts.slice(0, 3).map((c) => {
             const isSigned = c.status === "completed";
             return (
               <Link
                 key={c.id}
                 href={`/leads/${c.lead_id}`}
-                className="block bg-white border border-slate-200 rounded-xl p-3 hover:border-slate-300 hover:shadow-sm transition-all"
+                className="block bg-white border border-slate-200 rounded-lg px-3 py-2.5 hover:border-slate-300 hover:shadow-sm transition-all"
               >
-                <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold text-slate-900 leading-tight line-clamp-1">{c.address}</p>
-                  {isSigned ? (
-                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                  ) : (
-                    <Clock size={14} className="text-amber-600 shrink-0" />
-                  )}
+                  {isSigned
+                    ? <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                    : <Clock size={13} className="text-amber-600 shrink-0" />}
                 </div>
-                <p className="text-[11px] text-slate-500 flex items-center gap-1 mb-2">
-                  <MapPin size={9} className="text-slate-400" />{c.city}, {c.state}
+                <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                  <MapPin size={8} className="text-slate-400" />{c.city}, {c.state}
                 </p>
-                <div className="flex items-center justify-between">
-                  <p className="text-base font-semibold text-slate-900">{fmt$$(c.agreed_price)}</p>
+                <div className="flex items-center justify-between mt-1.5">
+                  <p className="text-sm font-semibold text-slate-900">{fmt$$(c.agreed_price)}</p>
                   <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
                     isSigned ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                   }`}>
                     {isSigned ? "Signed" : "Awaiting"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                  <span className="text-[10px] text-slate-500 truncate">{c.owner_name}</span>
-                  <span className="text-[10px] text-slate-400">{fmtDate(c.sent_at)}</span>
-                </div>
-                {!isSigned && (
-                  <button className="mt-2 w-full bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold uppercase tracking-wider py-1.5 rounded-md transition-colors flex items-center justify-center gap-1">
-                    Review & sign <ArrowRight size={11} />
-                  </button>
-                )}
               </Link>
             );
           })}
