@@ -12,7 +12,7 @@ import { CountUp } from "@/components/CountUp";
 import { PipelineStages } from "@/components/PipelineStages";
 import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
 import { LiveMessageFeed, type FeedEvent } from "@/components/LiveMessageFeed";
-import { AnalyticsCard } from "@/components/AnalyticsCard";
+import { AnalyticsCard, type LiveDeltas } from "@/components/AnalyticsCard";
 import { MarketSwitcher, MARKETS, type Market } from "@/components/MarketSwitcher";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
@@ -113,6 +113,9 @@ export default function MissionControlPage() {
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>(baselineForMarket(MARKETS[1].active_leads));
   const [contracts, setContracts] = useState<MockContract[]>([]);
+  // Cumulative deltas from feed events — fed into AnalyticsCard so the funnel
+  // shifts in lockstep with Network Activity.
+  const [liveDeltas, setLiveDeltas] = useState<LiveDeltas>({ contacted: 0, negotiating: 0, accepted: 0, contract: 0 });
   const startedAtRef = useRef<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -327,7 +330,7 @@ export default function MissionControlPage() {
             <ContractsRow contracts={contracts} />
           </div>
           <div className="md:col-span-2">
-            <AnalyticsCard />
+            <AnalyticsCard liveDeltas={liveDeltas} running={isRunning} />
           </div>
         </div>
 
@@ -338,8 +341,7 @@ export default function MissionControlPage() {
               heading="Network Activity"
               running={isRunning}
               onEvent={(e: FeedEvent) => {
-                // Each lifecycle event ticks a Live Pipeline metric so the
-                // numbers on the right reflect the action on the left.
+                // Bump Live Pipeline metrics
                 setMetrics((prev) => prev.map((m) => {
                   if (e.type === "spawned"     && m.key === "contacted")    return { ...m, value: m.value + 1 };
                   if (e.type === "negotiating" && m.key === "negotiating")  return { ...m, value: m.value + 1 };
@@ -349,6 +351,14 @@ export default function MissionControlPage() {
                   }
                   return m;
                 }));
+                // Bump Analytics deltas for the funnel
+                setLiveDeltas((prev) => {
+                  if (e.type === "spawned")     return { ...prev, contacted: prev.contacted + 1 };
+                  if (e.type === "negotiating") return { ...prev, negotiating: prev.negotiating + 1 };
+                  if (e.type === "completed" && e.outcome === "agreed")
+                    return { ...prev, accepted: prev.accepted + 1, contract: prev.contract + 1 };
+                  return prev;
+                });
               }}
             />
           </div>

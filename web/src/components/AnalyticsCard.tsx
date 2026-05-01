@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Campaign, Lead } from "@/lib/types";
 import { fmt$$ } from "@/lib/utils";
 import { buildFunnel, mockWeeklyMetrics, type FunnelStage } from "@/lib/mockData";
-import { SparkLine } from "@/components/SparkLine";
 import { Activity, Target, Zap, DollarSign, ArrowRight } from "lucide-react";
 
 function pct(n: number | null) {
@@ -22,15 +21,47 @@ const DEMO_BASELINE_STATS = {
   } as Record<string, number>,
 };
 
-export function AnalyticsCard() {
+// Live deltas from the dashboard's event bus — additive on top of baseline
+// so the funnel + KPIs visibly shift while the user watches.
+export interface LiveDeltas {
+  contacted: number;
+  negotiating: number;
+  accepted: number;
+  contract: number;
+}
+
+interface Props {
+  liveDeltas?: LiveDeltas;
+  running?: boolean;
+}
+
+export function AnalyticsCard({ liveDeltas, running = false }: Props) {
   const [funnel, setFunnel] = useState<FunnelStage[]>([]);
   const [scraped, setScraped] = useState(0);
   const [closedCount, setClosedCount] = useState(0);
-  const [trend6w, setTrend6w] = useState<number[]>([]);
-  const [replyTrend, setReplyTrend] = useState<number[]>([]);
-  const [closeTrend, setCloseTrend] = useState<number[]>([]);
   const [replyRate, setReplyRate] = useState(0);
   const [closeRate, setCloseRate] = useState(0);
+
+  // Slow drift on "Records" so the number is always moving (1-3 per second)
+  const [scrapedDrift, setScrapedDrift] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setScrapedDrift((d) => d + (running ? 4 + Math.floor(Math.random() * 8) : 1 + Math.floor(Math.random() * 3)));
+    }, running ? 600 : 1500);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // Tiny ±0.05% jitter on rates each second so they feel alive
+  const [rateJitter, setRateJitter] = useState({ reply: 0, close: 0 });
+  useEffect(() => {
+    const id = setInterval(() => {
+      setRateJitter({
+        reply: (Math.random() - 0.5) * 0.001,
+        close: (Math.random() - 0.5) * 0.0015,
+      });
+    }, 2200);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     Promise.all([api.campaigns.list().catch(() => []), api.leads.list(undefined, 500).catch(() => [])])
@@ -54,14 +85,43 @@ export function AnalyticsCard() {
         const totalContracted = weekly.reduce((s, w) => s + w.contracted, 0);
         setReplyRate(totalContacted ? totalReplied / totalContacted : 0);
         setCloseRate(totalReplied ? totalContracted / totalReplied : 0);
-        setTrend6w(weekly.slice(-6).map((w) => w.scraped));
-        setReplyTrend(weekly.slice(-6).map((w) => (w.contacted ? w.replied / w.contacted : 0) * 100));
-        setCloseTrend(weekly.slice(-6).map((w) => (w.replied ? w.contracted / w.replied : 0) * 100));
       });
   }, []);
 
-  const maxFunnel = funnel[0]?.count ?? 1;
-  const costPerDeal = closedCount > 0 ? Math.round((scraped * 0.12) / Math.max(closedCount, 1)) : 487;
+  // Apply live deltas to the funnel stages on each render
+  const liveContacted   = liveDeltas?.contacted   ?? 0;
+  const liveNegotiating = liveDeltas?.negotiating ?? 0;
+  const liveAccepted    = liveDeltas?.accepted    ?? 0;
+  const liveContract    = liveDeltas?.contract    ?? 0;
+
+  const adjustedFunnel = funnel.map((stage) => {
+    let delta = 0;
+    // Cumulative additions: outreach upstream stages also include downstream
+    if (stage.key === "scraped")        delta = scrapedDrift;
+    else if (stage.key === "skip_traced") delta = Math.floor(scrapedDrift * 0.30) + liveContacted + liveNegotiating + liveAccepted + liveContract;
+    else if (stage.key === "analyzed")    delta = Math.floor(scrapedDrift * 0.10) + liveContacted + liveNegotiating + liveAccepted + liveContract;
+    else if (stage.key === "outreach")    delta = liveContacted + liveNegotiating + liveAccepted + liveContract;
+    else if (stage.key === "negotiating") delta = liveNegotiating + liveAccepted + liveContract;
+    else if (stage.key === "under_contract") delta = liveAccepted + liveContract;
+    else if (stage.key === "closed")      delta = liveContract;
+    return { ...stage, count: stage.count + delta };
+  });
+
+  // Recompute conversions on the bumped numbers so they shift live too
+  const recomputed: FunnelStage[] = adjustedFunnel.map((stage, i) => {
+    if (i === 0) return { ...stage, conversion: null };
+    const prev = adjustedFunnel[i - 1].count;
+    return { ...stage, conversion: prev > 0 ? stage.count / prev : null };
+  });
+
+  const maxFunnel = recomputed[0]?.count ?? 1;
+  const liveScraped = scraped + scrapedDrift;
+  const liveClosed = closedCount + liveContract;
+  const costPerDeal = liveClosed > 0 ? Math.round((liveScraped * 0.12) / Math.max(liveClosed, 1)) : 487;
+
+  // Apply jitter to rates
+  const liveReplyRate = Math.max(0, Math.min(1, replyRate + rateJitter.reply));
+  const liveCloseRate = Math.max(0, Math.min(1, closeRate + rateJitter.close));
 
   return (
     <div className="bg-white border border-slate-200/70 rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
@@ -75,17 +135,17 @@ export function AnalyticsCard() {
         </Link>
       </div>
 
-      {/* 4 mini KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <MiniKPI icon={<Activity size={11} />} label="Records" value={scraped.toLocaleString()} trend={trend6w} color="#64748b" />
-        <MiniKPI icon={<Target size={11} />} label="Reply rate" value={pct(replyRate)} trend={replyTrend} color="#3b82f6" />
-        <MiniKPI icon={<Zap size={11} />} label="Close rate" value={pct(closeRate)} trend={closeTrend} color="#f59e0b" />
-        <MiniKPI icon={<DollarSign size={11} />} label="Cost/deal" value={fmt$$(costPerDeal)} color="#10b981" />
+      {/* Inline KPIs */}
+      <div className="flex items-center gap-5 mb-4 flex-wrap text-[12px]">
+        <Stat icon={<Activity size={11} />} label="Records" value={liveScraped.toLocaleString()} color="#64748b" />
+        <Stat icon={<Target size={11} />} label="Reply" value={pct(liveReplyRate)} color="#3b82f6" />
+        <Stat icon={<Zap size={11} />} label="Close" value={pct(liveCloseRate)} color="#f59e0b" />
+        <Stat icon={<DollarSign size={11} />} label="Cost/deal" value={fmt$$(costPerDeal)} color="#10b981" />
       </div>
 
-      {/* Mini funnel */}
+      {/* Mini funnel — bars shift live */}
       <div className="space-y-1.5">
-        {funnel.map((stage) => {
+        {recomputed.map((stage) => {
           const widthPct = maxFunnel > 0 ? (stage.count / maxFunnel) * 100 : 0;
           return (
             <div key={stage.key}>
@@ -104,7 +164,7 @@ export function AnalyticsCard() {
               </div>
               <div className="bg-slate-100 rounded h-1.5 relative overflow-hidden">
                 <div
-                  className="absolute left-0 top-0 h-full bg-slate-900 rounded transition-all"
+                  className="absolute left-0 top-0 h-full bg-slate-900 rounded transition-all duration-700"
                   style={{ width: `${Math.max(widthPct, 0.5)}%` }}
                 />
               </div>
@@ -116,25 +176,19 @@ export function AnalyticsCard() {
   );
 }
 
-function MiniKPI({
-  icon, label, value, trend, color,
+function Stat({
+  icon, label, value, color,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  trend?: number[];
   color: string;
 }) {
   return (
-    <div className="bg-slate-50/60 border border-slate-100 rounded-lg px-2.5 py-2">
-      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-0.5">
-        <span style={{ color }}>{icon}</span>
-        {label}
-      </div>
-      <p className="text-base font-bold text-slate-900 tabular-nums">{value}</p>
-      {trend && trend.length > 1 && (
-        <div className="mt-0.5"><SparkLine values={trend} width={80} height={16} stroke={color} fill={`${color}22`} /></div>
-      )}
+    <div className="flex items-center gap-2">
+      <span style={{ color }}>{icon}</span>
+      <span className="text-slate-500">{label}</span>
+      <span className="font-semibold text-slate-900 tabular-nums">{value}</span>
     </div>
   );
 }
