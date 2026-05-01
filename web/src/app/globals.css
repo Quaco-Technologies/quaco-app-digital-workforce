@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #fafbfc;
+  /* Mercury-style warm cream + dark slate text */
+  --bg: #f5f3ef;
+  --bg-elev: #faf9f6;
   --surface: #ffffff;
-  --border: rgba(15, 23, 42, 0.08);
-  --border-strong: rgba(15, 23, 42, 0.14);
-  --text: #0f172a;
-  --text-dim: #475569;
-  --text-mute: #94a3b8;
-  --accent: #0ea5e9;          /* sky-500 */
-  --accent-glow: rgba(14, 165, 233, 0.18);
+  --border: rgba(15, 23, 42, 0.06);
+  --border-strong: rgba(15, 23, 42, 0.10);
+  --text: #1a1f2e;
+  --text-dim: #5a6478;
+  --text-mute: #8e95a6;
+  --accent: #4f46e5;       /* indigo-600 — Mercury's "Send" blue */
   --success: #10b981;
   --warn: #f59e0b;
-  --danger: #f43f5e;
+  --danger: #ef4444;
 }
 
 @theme inline {
@@ -27,77 +28,73 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-weight: 400;
 }
 
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* ─── Surfaces ─────────────────────────────────────────────── */
-/* The premium card: white with a barely-there top gradient, hairline border,
- * and a thin shadow — that's all you need for the Stripe/Mercury feel. */
-.surface {
-  background:
-    linear-gradient(180deg, rgba(255,255,255,1), rgba(250,251,253,1));
-  border: 1px solid var(--border);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,1) inset,
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 4px 16px -4px rgba(15, 23, 42, 0.04);
-  border-radius: 14px;
-}
-.surface-strong {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 4px 24px -8px rgba(15, 23, 42, 0.06);
-}
-
-/* Premium light backdrop: faint accent glow at top + dot grid + neutral wash */
+/* ─── Mercury-style backdrop ──────────────────────────────── */
 .bg-canvas {
   background:
-    radial-gradient(ellipse 70% 35% at 50% -8%,  rgba(14, 165, 233, 0.06), transparent 60%),
-    radial-gradient(ellipse 60% 30% at 100% 100%, rgba(99, 102, 241, 0.04), transparent 60%),
+    radial-gradient(ellipse 80% 50% at 50% 0%,  rgba(255, 255, 255, 0.7), transparent 70%),
     var(--bg);
 }
-.bg-grid-light {
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.05) 1px, transparent 0);
-  background-size: 28px 28px;
+
+/* ─── Surfaces ────────────────────────────────────────────── */
+/* Mercury-style card: pure white, near-invisible border, super soft shadow */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 1px 2px rgba(15, 23, 42, 0.025),
+    0 4px 16px -8px rgba(15, 23, 42, 0.05);
+  border-radius: 16px;
 }
 
-/* Accent gradients for branded surfaces */
-.bg-brand-gradient {
-  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #10b981 100%);
+/* Pill button — Mercury "Send" style */
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 9999px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.bg-brand-gradient-soft {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(99, 102, 241, 0.05), rgba(16, 185, 129, 0.06));
-}
+.btn-pill:hover { background: var(--bg-elev); border-color: rgba(15, 23, 42, 0.16); }
 
-/* Glow on focus / accent state */
-.glow-accent {
-  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.4),
-              0 4px 24px -4px rgba(14, 165, 233, 0.30);
-}
-
-/* Premium button — slate-900 base with subtle inner highlight + outer glow */
-.btn-primary {
-  background: linear-gradient(180deg, #1e293b, #0f172a);
+.btn-pill-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #6366f1, #4f46e5);
   color: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 1);
+  border: 1px solid rgba(79, 70, 229, 1);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 1px 2px rgba(15, 23, 42, 0.20),
-    0 4px 16px -4px rgba(15, 23, 42, 0.30);
-  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 2px rgba(79, 70, 229, 0.30),
+    0 4px 16px -4px rgba(79, 70, 229, 0.30);
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #334155, #1e293b);
+.btn-pill-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #818cf8, #6366f1);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 2px 8px rgba(15, 23, 42, 0.24),
-    0 8px 24px -8px rgba(15, 23, 42, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 2px 8px rgba(79, 70, 229, 0.38),
+    0 8px 24px -8px rgba(79, 70, 229, 0.42);
 }
-.btn-primary:disabled {
-  background: #e2e8f0;
-  color: #94a3b8;
+.btn-pill-primary:disabled {
+  background: rgba(15, 23, 42, 0.08);
+  color: rgba(15, 23, 42, 0.36);
   border-color: transparent;
   box-shadow: none;
   cursor: not-allowed;
@@ -124,7 +121,7 @@ body {
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
-  background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
   background-size: 200% 100%;
   animation: shimmer 2.4s infinite;
 }
@@ -138,7 +135,6 @@ body {
   animation: gradient-shift 8s ease infinite;
 }
 
-/* Stagger entry */
 .stagger-children > * { animation: fade-up 360ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger-children > *:nth-child(1) { animation-delay: 0ms;   }
 .stagger-children > *:nth-child(2) { animation-delay: 60ms;  }
@@ -149,7 +145,6 @@ body {
 .stagger-children > *:nth-child(7) { animation-delay: 360ms; }
 .stagger-children > *:nth-child(8) { animation-delay: 420ms; }
 
-/* Big display number */
 .num-display {
   font-feature-settings: "tnum", "ss01", "cv11";
   letter-spacing: -0.02em;

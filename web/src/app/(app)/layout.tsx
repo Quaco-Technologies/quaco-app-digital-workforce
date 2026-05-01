@@ -34,9 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen relative">
-      {/* Premium light canvas: faint radial accent + subtle dot grid */}
+      {/* Mercury-style warm cream canvas — smooth, no grid */}
       <div className="fixed inset-0 -z-20 bg-canvas" />
-      <div className="fixed inset-0 -z-10 bg-grid-light opacity-60 pointer-events-none" />
       {/* Desktop sidebar — hidden on mobile */}
       <div className="hidden md:block">
         <Sidebar />
