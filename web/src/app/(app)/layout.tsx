@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { TopNav } from "@/components/TopNav";
 import { MobileNav } from "@/components/MobileNav";
 import { MobileHeader } from "@/components/MobileHeader";
 
@@ -38,6 +39,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Desktop layout: top nav only, no sidebar */}
       <main className="flex-1 overflow-auto relative pb-20 md:pb-0">
         <MobileHeader />
+        <div className="hidden md:block">
+          <TopNav />
+        </div>
         {children}
       </main>
       <MobileNav />
