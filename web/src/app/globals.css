@@ -33,6 +33,23 @@ body {
 
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
+/* Force a real emoji font, never let Inter try to render emoji as text
+ * (which produces a thin tofu / vertical-line glyph on some systems). */
+.emoji-glyph {
+  font-family:
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol",
+    "Noto Color Emoji",
+    "EmojiOne Color",
+    "Twemoji Mozilla",
+    sans-serif;
+  font-variant-emoji: emoji;
+  font-style: normal;
+  text-rendering: optimizeQuality;
+  -webkit-font-smoothing: antialiased;
+}
+
 /* ─── Mercury-style backdrop ──────────────────────────────── */
 .bg-canvas {
   background:

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, Settings as SettingsIcon, LogOut, Zap, Moon, User, Mail, KeyRound, CheckCircle2, Sparkles } from "lucide-react";
+import { Bell, Settings as SettingsIcon, LogOut, Zap, Moon, User, Mail, KeyRound, CheckCircle2, Sparkles, Clock, MessageSquare, FileSignature } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -86,23 +86,61 @@ export function FloatingActions() {
 
           <button
             aria-label="Account"
-            className="blob blob-accent text-[20px]"
+            className="blob blob-accent"
             onClick={() => setOpen(open === "avatar" ? null : "avatar")}
           >
-            <span className="leading-none">{critter.emoji}</span>
+            <span className="emoji-glyph text-[20px] leading-none">{critter.emoji}</span>
           </button>
         </div>
       </div>
 
       {open === "notifications" && (
-        <Panel>
-          <PanelHeader title="Notifications" subtitle="3 new this hour" />
-          <div className="divide-y divide-slate-100">
-            <NotifRow icon="✓" tone="emerald" title="Maria H. signed the contract"  meta="$187,500 · 3857 N High St · 2m ago" />
-            <NotifRow icon="✉" tone="blue"    title="New reply from James P."        meta={`“Send me the offer in writing” · 14m ago`} />
-            <NotifRow icon="◷" tone="amber"   title="Marcus C. counter-offer waiting" meta="$215k vs your $208k · 1h ago" />
+        <Panel wide>
+          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+            <div>
+              <p className="text-[15px] font-semibold text-slate-900 tracking-tight">Notifications</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Today</p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              3 new
+            </span>
           </div>
-          <PanelFooter label="Mark all as read" onClick={() => setOpen(null)} />
+          <div className="px-2 pb-2">
+            <NotifRow
+              icon={<FileSignature size={13} strokeWidth={2} />}
+              tone="emerald"
+              who="Maria H."
+              action="signed the contract"
+              detail="3857 N High St · $187,500"
+              time="2m"
+              unread
+            />
+            <NotifRow
+              icon={<MessageSquare size={13} strokeWidth={2} />}
+              tone="blue"
+              who="James P."
+              action="replied to your offer"
+              detail={`“Send me the offer in writing”`}
+              time="14m"
+              unread
+            />
+            <NotifRow
+              icon={<Clock size={13} strokeWidth={2} />}
+              tone="amber"
+              who="Marcus C."
+              action="sent a counter-offer"
+              detail="Asking $215k · you offered $208k"
+              time="1h"
+              unread
+            />
+          </div>
+          <button
+            onClick={() => setOpen(null)}
+            className="w-full text-center text-[12px] font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 py-3 transition-colors border-t border-slate-100"
+          >
+            Mark all as read
+          </button>
         </Panel>
       )}
 
@@ -129,7 +167,7 @@ export function FloatingActions() {
           <PanelHeader
             title={
               <span className="flex items-center gap-2">
-                <span className="text-[22px] leading-none">{critter.emoji}</span>
+                <span className="emoji-glyph text-[22px] leading-none">{critter.emoji}</span>
                 <span>{email?.split("@")[0] || "you"}</span>
               </span>
             }
@@ -152,7 +190,7 @@ export function FloatingActions() {
                     active ? "bg-gradient-to-br from-indigo-50 to-blue-50 ring-2 ring-indigo-400" : ""
                   }`}
                 >
-                  <span className="leading-none">{c.emoji}</span>
+                  <span className="emoji-glyph leading-none">{c.emoji}</span>
                   {active && (
                     <CheckCircle2 size={11} className="absolute -top-1 -right-1 text-indigo-600 fill-white" />
                   )}
@@ -212,27 +250,38 @@ function SettingRow({ icon, label, right }: { icon: React.ReactNode; label: stri
 }
 
 function NotifRow({
-  icon, tone, title, meta,
+  icon, tone, who, action, detail, time, unread = false,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   tone: "emerald" | "blue" | "amber";
-  title: string;
-  meta: string;
+  who: string;
+  action: string;
+  detail: string;
+  time: string;
+  unread?: boolean;
 }) {
-  const tones: Record<string, string> = {
-    emerald: "bg-emerald-50 text-emerald-700",
-    blue:    "bg-blue-50 text-blue-700",
-    amber:   "bg-amber-50 text-amber-700",
+  const tones: Record<string, { bg: string; text: string; ring: string }> = {
+    emerald: { bg: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-100" },
+    blue:    { bg: "bg-blue-50",    text: "text-blue-600",    ring: "ring-blue-100" },
+    amber:   { bg: "bg-amber-50",   text: "text-amber-600",   ring: "ring-amber-100" },
   };
+  const t = tones[tone];
   return (
-    <div className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer">
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] shrink-0 ${tones[tone]}`}>
+    <button className="w-full text-left flex items-start gap-3 px-2 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group relative">
+      {unread && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-full bg-indigo-500" />
+      )}
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${t.bg} ${t.text} ring-1 ${t.ring}`}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-medium text-slate-900 leading-snug">{title}</p>
-        <p className="text-[11px] text-slate-500 mt-0.5 truncate">{meta}</p>
+        <p className="text-[12.5px] leading-snug text-slate-700">
+          <span className="font-semibold text-slate-900">{who}</span>{" "}
+          <span className="text-slate-500">{action}</span>
+        </p>
+        <p className="text-[11px] text-slate-500 mt-0.5 truncate">{detail}</p>
       </div>
-    </div>
+      <span className="text-[10px] text-slate-400 font-medium tabular-nums shrink-0 mt-1">{time}</span>
+    </button>
   );
 }
