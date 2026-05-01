@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { CountUp } from "@/components/CountUp";
 import { PipelineStages } from "@/components/PipelineStages";
+import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
 interface ConvMsg {
@@ -472,6 +473,7 @@ function LiveFeedCard({
 }) {
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [activeModal, setActiveModal] = useState<MetricKind | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -500,10 +502,22 @@ function LiveFeedCard({
         )}
       </div>
 
-      {/* 4 pulsating metric rows */}
+      {/* 4 pulsating metric rows — clickable */}
       <div className="space-y-2 mb-4">
-        {metrics.map((m) => <MetricRow key={m.key} m={m} active={phase !== "idle"} />)}
+        {metrics.map((m) => (
+          <MetricRow
+            key={m.key}
+            m={m}
+            active={phase !== "idle"}
+            onClick={() => setActiveModal(m.key as MetricKind)}
+          />
+        ))}
       </div>
+      <MetricDetailModal
+        kind={activeModal}
+        active={phase !== "idle"}
+        onClose={() => setActiveModal(null)}
+      />
 
       {/* Stages animation while pipeline is "running" */}
       {phase === "stages" && (
@@ -642,21 +656,27 @@ function LiveFeedCard({
   );
 }
 
-function MetricRow({ m, active }: { m: Metric; active: boolean }) {
+function MetricRow({ m, active, onClick }: { m: Metric; active: boolean; onClick: () => void }) {
   const c = COLOR[m.color];
   return (
-    <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 transition-colors">
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 transition-colors group text-left"
+    >
       <div className="flex items-center gap-3">
         <span className="relative flex h-2 w-2">
           {active && <span className={`absolute inline-flex h-full w-full rounded-full ${c.ring} animate-ping`} />}
           <span className={`relative inline-flex h-2 w-2 rounded-full ${c.dot}`} />
         </span>
-        <span className={`text-sm font-medium text-slate-700`}>{m.label}</span>
+        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 group-hover:underline decoration-dotted underline-offset-4">
+          {m.label}
+        </span>
       </div>
       <span className={`text-base font-semibold tabular-nums ${c.text}`}>
         <CountUp value={m.value} durationMs={500} />
       </span>
-    </div>
+    </button>
   );
 }
 
