@@ -305,10 +305,12 @@ export default function MissionControlPage() {
 
       {/* Layout: left buy box | right column (live feed top, contracts bottom) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-        {/* LEFT: Buy Box + Network Activity feed below it */}
-        <div className="lg:col-span-4 order-1 space-y-4 lg:space-y-6">
+        {/* LEFT: Buy Box + Network Activity feed below it (flex column to fill height) */}
+        <div className="lg:col-span-4 order-1 flex flex-col gap-4 lg:gap-6">
           <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
-          <LiveMessageFeed heading="Network Activity" />
+          <div className="flex-1 min-h-0">
+            <LiveMessageFeed heading="Network Activity" />
+          </div>
         </div>
 
         {/* RIGHT */}
@@ -364,10 +366,7 @@ function BuyBoxCard({
 
   return (
     <div className="surface rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">Buy Box</h2>
-        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">Configure</span>
-      </div>
+      <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight mb-5">Buy Box</h2>
 
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -485,15 +484,6 @@ function BuyBoxCard({
         <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mt-3">{error}</p>
       )}
 
-      <button
-        onClick={startDemo}
-        disabled={isRunning}
-        className="btn-pill-primary mt-5 w-full justify-center"
-      >
-        {isRunning
-          ? <><Loader2 size={13} className="animate-spin" /> Running pipeline…</>
-          : <><Play size={12} fill="currentColor" /> Run Pipeline</>}
-      </button>
     </div>
   );
 }

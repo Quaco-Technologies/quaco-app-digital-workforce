@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Sidebar } from "@/components/Sidebar";
 import { TopNav } from "@/components/TopNav";
 import { MobileNav } from "@/components/MobileNav";
 import { MobileHeader } from "@/components/MobileHeader";
@@ -37,13 +36,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen relative">
       {/* Mercury-style warm cream canvas — smooth, no grid */}
       <div className="fixed inset-0 -z-20 bg-canvas" />
-      {/* Desktop sidebar — hidden on mobile */}
-      <div className="hidden md:block">
-        <Sidebar />
-      </div>
+      {/* Desktop layout: top nav only, no sidebar */}
       <main className="flex-1 overflow-auto relative pb-20 md:pb-0">
         <MobileHeader />
-        {/* Desktop top navbar — Mercury-style search + actions row */}
         <div className="hidden md:block">
           <TopNav />
         </div>

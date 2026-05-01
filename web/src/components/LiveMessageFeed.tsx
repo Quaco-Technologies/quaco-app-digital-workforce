@@ -90,7 +90,7 @@ export function LiveMessageFeed({ heading = "Live Activity" }: { heading?: strin
   }, [messages, typing]);
 
   return (
-    <div className="bg-white border border-slate-200/70 rounded-xl p-5 overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="surface p-5 overflow-hidden h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight flex items-center gap-2">
           <MessageSquare size={14} strokeWidth={1.75} className="text-slate-400" />
@@ -107,7 +107,7 @@ export function LiveMessageFeed({ heading = "Live Activity" }: { heading?: strin
 
       <div
         ref={containerRef}
-        className="space-y-2 max-h-[340px] overflow-y-auto pr-1 scroll-smooth"
+        className="space-y-2 flex-1 min-h-[280px] overflow-y-auto pr-1 scroll-smooth"
       >
         {messages.map((m) => (
           <div
