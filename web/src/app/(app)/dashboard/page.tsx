@@ -11,7 +11,7 @@ import {
 import { CountUp } from "@/components/CountUp";
 import { PipelineStages } from "@/components/PipelineStages";
 import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
-import { LiveMessageFeed } from "@/components/LiveMessageFeed";
+import { LiveMessageFeed, type FeedEvent } from "@/components/LiveMessageFeed";
 import { AnalyticsCard } from "@/components/AnalyticsCard";
 import { MarketSwitcher, MARKETS, type Market } from "@/components/MarketSwitcher";
 import { mockContracts, type MockContract } from "@/lib/mockData";
@@ -334,7 +334,23 @@ export default function MissionControlPage() {
         {/* RIGHT side: Network Activity, full height of the row */}
         <div className="lg:col-span-4">
           <div className="h-full">
-            <LiveMessageFeed heading="Network Activity" />
+            <LiveMessageFeed
+              heading="Network Activity"
+              running={isRunning}
+              onEvent={(e: FeedEvent) => {
+                // Each lifecycle event ticks a Live Pipeline metric so the
+                // numbers on the right reflect the action on the left.
+                setMetrics((prev) => prev.map((m) => {
+                  if (e.type === "spawned"     && m.key === "contacted")    return { ...m, value: m.value + 1 };
+                  if (e.type === "negotiating" && m.key === "negotiating")  return { ...m, value: m.value + 1 };
+                  if (e.type === "completed" && e.outcome === "agreed") {
+                    if (m.key === "accepted") return { ...m, value: m.value + 1 };
+                    if (m.key === "contract") return { ...m, value: m.value + 1 };
+                  }
+                  return m;
+                }));
+              }}
+            />
           </div>
         </div>
       </div>

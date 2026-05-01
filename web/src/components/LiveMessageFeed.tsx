@@ -1,79 +1,66 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare } from "lucide-react";
+import { spawnSeller, type Seller, type Outcome } from "@/lib/sellerPool";
 
 interface FakeMessage {
   id: string;
   body: string;
   role: "agent" | "owner";
-  ts: number;
 }
 
-interface SellerScript {
-  owner: string;
-  city: string;
-  state: string;
-  script: Array<{ role: "agent" | "owner"; body: string }>;
+export type FeedEvent =
+  | { type: "spawned"; seller: Seller }
+  | { type: "negotiating"; sellerId: string }
+  | { type: "completed"; seller: Seller; outcome: Outcome };
+
+interface Props {
+  heading?: string;
+  running?: boolean;
+  onEvent?: (e: FeedEvent) => void;
 }
 
-const SELLERS: SellerScript[] = [
-  { owner: "Maria H.", city: "Atlanta", state: "GA", script: [
-    { role: "agent", body: "Hi Maria, I'm a local cash buyer. Would you ever consider an offer on 3857 N High St?" },
-    { role: "owner", body: "Maybe. What kind of number are we talking?" },
-    { role: "agent", body: "I can do $187,500 cash, as-is, close in 14 days." },
-    { role: "owner", body: "Could you do $200k?" },
-    { role: "agent", body: "I can stretch to $195k cash. That's my best." },
-    { role: "owner", body: "Deal. Send the paperwork." },
-  ]},
-  { owner: "James P.", city: "Dallas", state: "TX", script: [
-    { role: "agent", body: "Hey James, would you consider a cash offer on 1204 Maple Ridge?" },
-    { role: "owner", body: "Send me the offer in writing." },
-    { role: "agent", body: "Just sent — $142k cash, 10-day close. What's your email?" },
-    { role: "owner", body: "james.p@gmail.com" },
-    { role: "agent", body: "Awesome. Contract on its way." },
-  ]},
-  { owner: "Linda G.", city: "Atlanta", state: "GA", script: [
-    { role: "agent", body: "Hi Linda, just following up on 62 Oak Lane — still open to a quick chat?" },
-    { role: "owner", body: "Not interested right now, thanks." },
-    { role: "agent", body: "No problem — if anything changes, I'm here." },
-  ]},
-  { owner: "Marcus C.", city: "Tampa", state: "FL", script: [
-    { role: "agent", body: "Hey Marcus, are you open to a cash offer on 991 Bayview Ave?" },
-    { role: "owner", body: "I'd need at least $215k. Can you do that?" },
-    { role: "agent", body: "I can stretch to $208k cash, 14-day close." },
-    { role: "owner", body: "Deal. Send the paperwork." },
-  ]},
-  { owner: "Tasha W.", city: "Charlotte", state: "NC", script: [
-    { role: "agent", body: "Hi Tasha, any chance you'd consider a cash offer on 4421 W Pine?" },
-    { role: "owner", body: "Yes! Let's do it." },
-    { role: "agent", body: "Awesome. $168k cash. What's the best email for paperwork?" },
-  ]},
-  { owner: "Robert K.", city: "Phoenix", state: "AZ", script: [
-    { role: "agent", body: "Hi Robert, would you consider a cash offer on 707 Sunset Blvd?" },
-    { role: "owner", body: "Maybe — what's your offer?" },
-    { role: "agent", body: "$198k cash, close in 14 days. Sound fair?" },
-  ]},
-];
+export function LiveMessageFeed({ heading = "Network Activity", running = false, onEvent }: Props) {
+  const [deck, setDeck] = useState<Seller[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const eventRef = useRef(onEvent);
+  useEffect(() => { eventRef.current = onEvent; }, [onEvent]);
 
-// Renders 3 separate seller cards stacked. Each is its own surface card,
-// each cycles through its seller's conversation independently.
-export function LiveMessageFeed({ heading = "Network Activity" }: { heading?: string }) {
-  const [shown, setShown] = useState<SellerScript[]>([SELLERS[0], SELLERS[1], SELLERS[2]]);
-  const cursorRef = useRef(3);
-
-  // Rotate one of the three to a fresh seller every 25s so the panel keeps moving
+  // Seed 3 unique sellers on mount
   useEffect(() => {
-    const swap = setInterval(() => {
-      setShown((prev) => {
-        const next = [...prev];
-        const rotateIdx = Math.floor(Math.random() * 3);
-        next[rotateIdx] = SELLERS[cursorRef.current % SELLERS.length];
-        cursorRef.current += 1;
-        return next;
-      });
-    }, 25_000);
-    return () => clearInterval(swap);
+    const seed = [spawnSeller(), spawnSeller(), spawnSeller()];
+    setDeck(seed);
+    seed.forEach((s) => eventRef.current?.({ type: "spawned", seller: s }));
+  }, []);
+
+  // Replace one card whenever a SellerConversation reports completion.
+  // The replaced seller scrolls off the top, fresh one slides in at the bottom.
+  const handleCompleted = useCallback((sellerId: string, outcome: Outcome) => {
+    setDeck((prev) => {
+      const idx = prev.findIndex((s) => s.id === sellerId);
+      if (idx < 0) return prev;
+      const completed = prev[idx];
+      eventRef.current?.({ type: "completed", seller: completed, outcome });
+      const fresh = spawnSeller();
+      eventRef.current?.({ type: "spawned", seller: fresh });
+      // Append the fresh one at the bottom, drop the completed one
+      const next = prev.filter((_, i) => i !== idx);
+      next.push(fresh);
+      // Keep a rolling history so user can scroll up to see past closes
+      return next.slice(-15);
+    });
+    // Auto-scroll the visible window to the freshest if user is near the bottom
+    requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      if (atBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    });
+  }, []);
+
+  const handleNegotiating = useCallback((sellerId: string) => {
+    eventRef.current?.({ type: "negotiating", sellerId });
   }, []);
 
   return (
@@ -88,16 +75,28 @@ export function LiveMessageFeed({ heading = "Network Activity" }: { heading?: st
             <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
           </span>
-          Live
+          {running ? "Live · running" : "Live"}
         </span>
       </div>
 
-      {/* Three separate cards stacked — each flexes to fill 1/3 of the
-          remaining vertical space so the column total matches the right side */}
-      <div className="flex-1 min-h-0 flex flex-col gap-3">
-        {shown.map((s, i) => (
-          <div key={`${s.owner}-${i}`} className="flex-1 min-h-0">
-            <SellerConversation seller={s} />
+      {/* TikTok-style scroll: snap to each card, scroll up for prior closes,
+          scroll down to the latest. New cards spawn over time. */}
+      <div
+        ref={containerRef}
+        className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto pr-1 snap-y snap-mandatory scroll-smooth"
+      >
+        {deck.map((s) => (
+          <div
+            key={s.id}
+            className="snap-start flex-shrink-0"
+            style={{ minHeight: "calc((100% - 1.5rem) / 3)" }}
+          >
+            <SellerConversation
+              seller={s}
+              accelerated={running}
+              onNegotiating={() => handleNegotiating(s.id)}
+              onCompleted={() => handleCompleted(s.id, s.outcome)}
+            />
           </div>
         ))}
       </div>
@@ -105,57 +104,94 @@ export function LiveMessageFeed({ heading = "Network Activity" }: { heading?: st
   );
 }
 
-function SellerConversation({ seller }: { seller: SellerScript }) {
+interface SellerCardProps {
+  seller: Seller;
+  accelerated: boolean;
+  onNegotiating: () => void;
+  onCompleted: () => void;
+}
+
+function SellerConversation({ seller, accelerated, onNegotiating, onCompleted }: SellerCardProps) {
   const [messages, setMessages] = useState<FakeMessage[]>([]);
   const [typing, setTyping] = useState<{ role: "agent" | "owner" } | null>(null);
+  const [closed, setClosed] = useState(false);
   const idxRef = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const completedRef = useRef(false);
+  const negotiatedRef = useRef(false);
+
+  // Capture latest callbacks
+  const negCb = useRef(onNegotiating);
+  const doneCb = useRef(onCompleted);
+  useEffect(() => { negCb.current = onNegotiating; doneCb.current = onCompleted; }, [onNegotiating, onCompleted]);
 
   useEffect(() => {
     setMessages([]);
     setTyping(null);
+    setClosed(false);
     idxRef.current = 0;
+    completedRef.current = false;
+    negotiatedRef.current = false;
 
     let timeoutId: ReturnType<typeof setTimeout>;
+    const baseGap = accelerated ? 900 : 1700;
+    const baseTyping = accelerated ? 350 : 600;
 
     const tick = () => {
       if (idxRef.current >= seller.script.length) {
-        // Loop the conversation back from the start so the card keeps moving
-        setMessages([]);
-        idxRef.current = 0;
+        // Conversation finished. Hold for ~3s with a "Closed" badge, then signal completion.
+        if (!completedRef.current) {
+          completedRef.current = true;
+          setClosed(true);
+          timeoutId = setTimeout(() => doneCb.current(), 3000);
+        }
+        return;
       }
-      const next = seller.script[idxRef.current];
-      idxRef.current += 1;
-
+      const next = seller.script[idxRef.current++];
+      // Fire negotiation event the first time the OWNER replies
+      if (next.role === "owner" && !negotiatedRef.current) {
+        negotiatedRef.current = true;
+        negCb.current();
+      }
       setTyping({ role: next.role });
-      const typingDelay = 700 + Math.random() * 500;
       timeoutId = setTimeout(() => {
         setTyping(null);
-        const newMsg: FakeMessage = { id: `m-${Date.now()}-${Math.random()}`, body: next.body, role: next.role, ts: Date.now() };
-        setMessages((prev) => [...prev, newMsg].slice(-6));
-        timeoutId = setTimeout(tick, 2200 + Math.random() * 1200);
-      }, typingDelay);
+        setMessages((prev) => [...prev, {
+          id: `m-${Date.now()}-${Math.random()}`,
+          body: next.body, role: next.role,
+        }].slice(-5));
+        timeoutId = setTimeout(tick, baseGap + Math.random() * 600);
+      }, baseTyping + Math.random() * 300);
     };
 
-    timeoutId = setTimeout(tick, 800 + Math.random() * 600);
+    timeoutId = setTimeout(tick, 300 + Math.random() * 500);
     return () => clearTimeout(timeoutId);
-  }, [seller]);
+  }, [seller, accelerated]);
 
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, typing]);
+
+  const closedColor = seller.outcome === "agreed" ? "emerald" : "slate";
 
   return (
     <div className="surface p-3 overflow-hidden flex flex-col h-full">
-      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-2 shrink-0">
-        <span className="font-medium text-slate-600">{seller.owner}</span>
-        <span>·</span>
-        <span>{seller.city}, {seller.state}</span>
+      <div className="flex items-center justify-between gap-2 text-[10px] mb-2 shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0 text-slate-400">
+          <span className="font-medium text-slate-600 truncate">{seller.owner}</span>
+          <span>·</span>
+          <span className="truncate">{seller.city}, {seller.state}</span>
+        </div>
+        {closed && (
+          <span className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
+            closedColor === "emerald" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+          }`}>
+            {seller.outcome === "agreed" ? `✓ $${seller.agreedPrice?.toLocaleString()}` : "Passed"}
+          </span>
+        )}
       </div>
 
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1.5 scroll-smooth">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1.5 scroll-smooth">
         {messages.map((m) => (
           <div key={m.id} className={`flex animate-slide-in ${m.role === "agent" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[85%] px-2.5 py-1.5 rounded-xl text-[12px] leading-snug shadow-sm ${
