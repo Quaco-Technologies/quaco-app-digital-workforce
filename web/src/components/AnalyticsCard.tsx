@@ -64,13 +64,13 @@ export function AnalyticsCard() {
   const costPerDeal = closedCount > 0 ? Math.round((scraped * 0.12) / Math.max(closedCount, 1)) : 487;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+    <div className="bg-white border border-slate-200/70 rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-slate-900">Analytics</h3>
+          <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Analytics</h3>
           <p className="text-xs text-slate-500 mt-0.5">Funnel performance · last 8 weeks</p>
         </div>
-        <Link href="/analytics" className="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1">
+        <Link href="/analytics" className="text-[11px] font-medium text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors">
           Full report <ArrowRight size={11} />
         </Link>
       </div>

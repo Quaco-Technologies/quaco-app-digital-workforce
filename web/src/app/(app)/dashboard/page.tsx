@@ -339,8 +339,11 @@ function BuyBoxCard({
   const labelClass = "block text-[11px] font-medium text-slate-500 mb-1";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      <h2 className="font-semibold text-slate-900 mb-4">Buy Box</h2>
+    <div className="bg-white border border-slate-200/70 rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">Buy Box</h2>
+        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">Configure</span>
+      </div>
 
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -461,11 +464,11 @@ function BuyBoxCard({
       <button
         onClick={startDemo}
         disabled={isRunning}
-        className="mt-4 w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+        className="mt-4 w-full relative bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-medium py-2.5 rounded-md transition-all flex items-center justify-center gap-2 shadow-[0_1px_2px_rgba(15,23,42,0.1),0_0_0_1px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,0.08)] hover:shadow-[0_2px_8px_rgba(15,23,42,0.16),0_0_0_1px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.1)]"
       >
         {isRunning
-          ? <><Loader2 size={14} className="animate-spin" /> Running…</>
-          : <><Play size={14} fill="currentColor" /> Run Pipeline</>}
+          ? <><Loader2 size={13} className="animate-spin" /> Running pipeline…</>
+          : <><Play size={12} fill="currentColor" /> Run Pipeline</>}
       </button>
     </div>
   );
@@ -498,15 +501,17 @@ function LiveFeedCard({
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-slate-900">Live Pipeline</h3>
-        {phase !== "idle" && (
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-rose-600">
+        <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Live Pipeline</h3>
+        {phase !== "idle" ? (
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-rose-600">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
             </span>
-            LIVE
+            Live
           </span>
+        ) : (
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">Idle</span>
         )}
       </div>
 
@@ -640,18 +645,16 @@ function MetricRow({ m, active, onClick }: { m: Metric; active: boolean; onClick
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 transition-colors group text-left"
+      className="w-full flex items-center justify-between py-2.5 px-3 rounded-md hover:bg-slate-50 transition-colors group text-left"
     >
       <div className="flex items-center gap-3">
-        <span className="relative flex h-2 w-2">
+        <span className="relative flex h-1.5 w-1.5">
           {active && <span className={`absolute inline-flex h-full w-full rounded-full ${c.ring} animate-ping`} />}
-          <span className={`relative inline-flex h-2 w-2 rounded-full ${c.dot}`} />
+          <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${c.dot}`} />
         </span>
-        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 group-hover:underline decoration-dotted underline-offset-4">
-          {m.label}
-        </span>
+        <span className="text-[13px] text-slate-700 group-hover:text-slate-900">{m.label}</span>
       </div>
-      <span className={`text-base font-semibold tabular-nums ${c.text}`}>
+      <span className={`text-[15px] font-semibold tabular-nums tracking-tight ${c.text}`}>
         <CountUp value={m.value} durationMs={500} />
       </span>
     </button>
@@ -668,13 +671,13 @@ function ContractsRow({ contracts }: { contracts: MockContract[] }) {
   const pending = contracts.filter((c) => c.status === "sent");
   const signed = contracts.filter((c) => c.status === "completed");
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+    <div className="bg-white border border-slate-200/70 rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-slate-900">Ready to Sign</h3>
-          <p className="text-xs text-slate-500 mt-0.5">{pending.length} awaiting · {signed.length} signed</p>
+          <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Ready to Sign</h3>
+          <p className="text-xs text-slate-500 mt-0.5 tabular-nums">{pending.length} awaiting · {signed.length} signed</p>
         </div>
-        <Link href="/contracts" className="text-xs text-slate-500 hover:text-slate-900">View all →</Link>
+        <Link href="/contracts" className="text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors">View all →</Link>
       </div>
 
       {contracts.length === 0 ? (

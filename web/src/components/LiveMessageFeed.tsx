@@ -90,12 +90,19 @@ export function LiveMessageFeed({ heading = "Live Activity" }: { heading?: strin
   }, [messages, typing]);
 
   return (
-    <div className="bg-white/70 backdrop-blur-md border border-white/60 rounded-2xl p-5 overflow-hidden shadow-sm">
+    <div className="bg-white border border-slate-200/70 rounded-xl p-5 overflow-hidden shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
-          <MessageSquare size={15} className="text-blue-500" /> {heading}
+        <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+          <MessageSquare size={14} strokeWidth={1.75} className="text-slate-400" />
+          {heading}
         </h3>
-        <LiveDot color="red" label="LIVE" />
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-rose-600">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
+          </span>
+          Live
+        </span>
       </div>
 
       <div
