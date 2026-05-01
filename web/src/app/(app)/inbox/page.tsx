@@ -7,7 +7,6 @@ import { InboxThread } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Inbox as InboxIcon, MessageSquare, Play } from "lucide-react";
 import { LiveDot } from "@/components/LiveDot";
-import { LiveMessageFeed } from "@/components/LiveMessageFeed";
 
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -49,9 +48,9 @@ export default function InboxPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Thread list */}
-        <div className="md:col-span-2">
+      <div>
+        {/* Thread list (full width — Network Activity now lives on Mission Control) */}
+        <div>
           {error && (
             <div className="bg-red-50/80 backdrop-blur-md border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4">
               Couldn&apos;t load inbox: {error}
@@ -132,10 +131,6 @@ export default function InboxPage() {
           )}
         </div>
 
-        {/* Live feed */}
-        <div className="md:col-span-1">
-          <LiveMessageFeed heading="Network Activity" />
-        </div>
       </div>
     </div>
   );

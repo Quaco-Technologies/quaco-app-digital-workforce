@@ -11,6 +11,7 @@ import {
 import { CountUp } from "@/components/CountUp";
 import { PipelineStages } from "@/components/PipelineStages";
 import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
+import { LiveMessageFeed } from "@/components/LiveMessageFeed";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
 interface ConvMsg {
@@ -254,9 +255,10 @@ export default function MissionControlPage() {
 
       {/* Layout: left buy box | right column (live feed top, contracts bottom) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-        {/* LEFT: Buy Box */}
-        <div className="lg:col-span-4 order-1">
+        {/* LEFT: Buy Box + Network Activity feed below it */}
+        <div className="lg:col-span-4 order-1 space-y-4 lg:space-y-6">
           <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
+          <LiveMessageFeed heading="Network Activity" />
         </div>
 
         {/* RIGHT */}
