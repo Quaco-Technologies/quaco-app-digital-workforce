@@ -23,18 +23,18 @@ interface NavSection {
   items: NavItem[];
 }
 
+// Hidden but still routable: /demo, /leads, /inbox, /analytics — pages exist,
+// just not in nav. Direct URLs and inter-page Links continue to work.
 const sections: NavSection[] = [
   {
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/demo",      label: "Investor Demo", icon: Sparkles },
     ],
   },
   {
     heading: "Pipeline",
     items: [
       { href: "/board",     label: "Pipeline Board", icon: LayoutGrid },
-      { href: "/leads",     label: "Leads",          icon: Folder },
       { href: "/campaigns", label: "Campaigns",      icon: Folder },
       { href: "/pipeline",  label: "Run New",        icon: Play },
     ],
@@ -42,7 +42,6 @@ const sections: NavSection[] = [
   {
     heading: "Communication",
     items: [
-      { href: "/inbox",     label: "Inbox",     icon: Inbox },
       { href: "/sequences", label: "Sequences", icon: Repeat },
     ],
   },
@@ -50,7 +49,6 @@ const sections: NavSection[] = [
     heading: "Outcomes",
     items: [
       { href: "/contracts", label: "Contracts", icon: FileSignature },
-      { href: "/analytics", label: "Analytics", icon: BarChart3 },
     ],
   },
   {

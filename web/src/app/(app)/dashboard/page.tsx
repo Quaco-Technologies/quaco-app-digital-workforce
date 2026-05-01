@@ -255,29 +255,26 @@ export default function MissionControlPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Mission Control</h1>
-            {isRunning && (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-rose-600">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
-                </span>
-                LIVE
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-500 mt-0.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-slate-500">
             {phase === "idle"
-              ? `${market.key === "all" ? "Across all markets" : `Viewing ${market.city}, ${market.state}`} · set your buy box, hit Run`
+              ? (market.key === "all" ? "Across all markets" : `Viewing ${market.city}, ${market.state}`)
               : phase === "stages"
                 ? `Pipeline running · ${elapsed}s`
                 : agreedPrice
                   ? `Deal agreed at $${agreedPrice.toLocaleString()} · ${elapsed}s`
                   : `Negotiating · ${elapsed}s`}
           </p>
+          {isRunning && (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-rose-600">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
+              </span>
+              LIVE
+            </span>
+          )}
         </div>
         <MarketSwitcher current={market} onChange={switchMarket} />
       </div>
