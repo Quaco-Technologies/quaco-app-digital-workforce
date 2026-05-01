@@ -10,9 +10,7 @@ import { cn } from "@/lib/utils";
 const NAV: Array<{ href: string; label: string }> = [
   { href: "/dashboard",  label: "Home" },
   { href: "/board",      label: "Pipeline" },
-  { href: "/campaigns",  label: "Campaigns" },
   { href: "/contracts",  label: "Contracts" },
-  { href: "/sequences",  label: "Sequences" },
 ];
 
 export function TopNav() {

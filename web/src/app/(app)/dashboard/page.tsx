@@ -293,48 +293,49 @@ export default function MissionControlPage() {
             <FileSignature size={12} strokeWidth={1.75} />
             Contracts
           </Link>
-          <Link href="/sequences" className="btn-pill">
-            <Clock size={12} strokeWidth={1.75} />
-            Sequences
-          </Link>
           <Link href="/analytics" className="btn-pill ml-auto text-slate-500 hover:text-slate-900">
             Customize →
           </Link>
         </div>
       </div>
 
-      {/* Layout: left buy box | right column (live feed top, contracts bottom) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
-        {/* LEFT: Buy Box + Network Activity feed below it (flex column to fill height) */}
-        <div className="lg:col-span-4 order-1 flex flex-col gap-4 lg:gap-6">
-          <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
-          <div className="flex-1 min-h-0">
-            <LiveMessageFeed heading="Network Activity" />
+      {/* New layout:
+          LEFT (col-span-8): grid of [Buy Box | Live Pipeline] then [Ready to Sign] then [Analytics]
+          RIGHT (col-span-4): Network Activity, full-height column */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 lg:items-stretch">
+        {/* LEFT side: 2-col sub-grid for the top row, then full-width rows below */}
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:auto-rows-min">
+          <div className="md:col-span-1">
+            <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
+          </div>
+          <div className="md:col-span-1">
+            <LiveFeedCard
+              phase={phase}
+              metrics={metrics}
+              conversation={conversation}
+              recipientPhone={recipientPhone}
+              agreedPrice={agreedPrice}
+              contractEmail={contractEmail}
+              contractDelivered={contractDelivered}
+              contractSigned={contractSigned}
+              contractUrl={contractUrl}
+              leadId={leadId}
+              onStagesComplete={fireNegotiation}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <ContractsRow contracts={contracts} />
+          </div>
+          <div className="md:col-span-2">
+            <AnalyticsCard />
           </div>
         </div>
 
-        {/* RIGHT */}
-        <div className="lg:col-span-8 order-2 space-y-4 lg:space-y-6">
-          {/* RIGHT TOP: Live Feed */}
-          <LiveFeedCard
-            phase={phase}
-            metrics={metrics}
-            conversation={conversation}
-            recipientPhone={recipientPhone}
-            agreedPrice={agreedPrice}
-            contractEmail={contractEmail}
-            contractDelivered={contractDelivered}
-            contractSigned={contractSigned}
-            contractUrl={contractUrl}
-            leadId={leadId}
-            onStagesComplete={fireNegotiation}
-          />
-
-          {/* RIGHT BOTTOM: Ready to Sign */}
-          <ContractsRow contracts={contracts} />
-
-          {/* RIGHT FOOTER: Condensed analytics */}
-          <AnalyticsCard />
+        {/* RIGHT side: Network Activity, full height of the row */}
+        <div className="lg:col-span-4">
+          <div className="h-full">
+            <LiveMessageFeed heading="Network Activity" />
+          </div>
         </div>
       </div>
     </div>
@@ -352,14 +353,6 @@ function BuyBoxCard({
   isRunning: boolean;
   error: string | null;
 }) {
-  const [phoneDraft, setPhoneDraft] = useState("");
-  const addPhone = () => {
-    const p = phoneDraft.trim();
-    if (!p || form.extra_phones.includes(p)) { setPhoneDraft(""); return; }
-    set("extra_phones", [...form.extra_phones, p]);
-    setPhoneDraft("");
-  };
-  const removePhone = (p: string) => set("extra_phones", form.extra_phones.filter((x) => x !== p));
 
   const inputClass = "w-full px-3 py-2 text-sm border border-white/10 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400";
   const labelClass = "block text-[11px] font-medium text-slate-500 mb-1";
@@ -436,47 +429,14 @@ function BuyBoxCard({
           </div>
         </div>
 
-        <div className="pt-3 border-t border-white/5">
-          <label className={labelClass}>Primary phone (gets the texts)</label>
+        <div className="pt-3 border-t border-slate-100">
           <input
             type="tel"
             value={form.notify_phone}
             onChange={(e) => set("notify_phone", e.target.value)}
-            placeholder="+1 555 123 4567"
+            placeholder="Phone number for live SMS"
             className={inputClass}
           />
-        </div>
-
-        <div>
-          <label className={labelClass}>Also text</label>
-          <div className="flex gap-1.5 mb-2">
-            <input
-              type="tel"
-              value={phoneDraft}
-              onChange={(e) => setPhoneDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhone(); } }}
-              placeholder="+1 555…"
-              className={inputClass}
-            />
-            <button
-              type="button"
-              onClick={addPhone}
-              disabled={!phoneDraft.trim()}
-              className="px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-white/10 hover:border-slate-300 disabled:opacity-50 rounded-lg transition-colors"
-            >
-              Add
-            </button>
-          </div>
-          {form.extra_phones.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {form.extra_phones.map((p) => (
-                <span key={p} className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-slate-100 text-slate-700 border border-white/10 px-2 py-1 rounded-md">
-                  {p}
-                  <button onClick={() => removePhone(p)} className="text-slate-400 hover:text-rose-600">×</button>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
