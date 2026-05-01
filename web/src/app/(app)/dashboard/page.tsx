@@ -13,6 +13,7 @@ import { PipelineStages } from "@/components/PipelineStages";
 import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
 import { LiveMessageFeed, type FeedEvent } from "@/components/LiveMessageFeed";
 import { AnalyticsCard, type LiveDeltas } from "@/components/AnalyticsCard";
+import { USMapCard } from "@/components/USMapCard";
 import { MarketSwitcher, MARKETS, type Market } from "@/components/MarketSwitcher";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
@@ -116,6 +117,11 @@ export default function MissionControlPage() {
   // Cumulative deltas from feed events — fed into AnalyticsCard so the funnel
   // shifts in lockstep with Network Activity.
   const [liveDeltas, setLiveDeltas] = useState<LiveDeltas>({ contacted: 0, negotiating: 0, accepted: 0, contract: 0 });
+  // Map subscribes to the same FeedEvent stream via this ref-held handler.
+  const mapHandlerRef = useRef<((e: FeedEvent) => void) | null>(null);
+  const registerMapSink = useCallback((handler: (e: FeedEvent) => void) => {
+    mapHandlerRef.current = handler;
+  }, []);
   const startedAtRef = useRef<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -256,7 +262,7 @@ export default function MissionControlPage() {
   const elapsed = phase !== "idle" ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-fade-in">
       {/* Mercury-style hero: greeting + market chip + action pill row */}
       <div className="mb-6">
         <div className="flex items-end justify-between gap-3 mb-4">
@@ -303,11 +309,18 @@ export default function MissionControlPage() {
       </div>
 
       {/* New layout:
-          LEFT (col-span-8): grid of [Buy Box | Live Pipeline] then [Ready to Sign] then [Analytics]
-          RIGHT (col-span-4): Network Activity, full-height column */}
+          LEFT (col-span-9): top row [US Map | Buy Box | Live Pipeline] (3 cols),
+            then [Ready to Sign] full-width, then [Analytics] full-width.
+          RIGHT (col-span-3): Network Activity, full-height column */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 lg:items-stretch">
-        {/* LEFT side: 2-col sub-grid for the top row, then full-width rows below */}
-        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:auto-rows-min">
+        <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 lg:auto-rows-min">
+          <div className="md:col-span-1">
+            <USMapCard
+              running={isRunning}
+              focusCity={market.key === "all" ? undefined : market.city}
+              registerEventSink={registerMapSink}
+            />
+          </div>
           <div className="md:col-span-1">
             <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
           </div>
@@ -326,16 +339,16 @@ export default function MissionControlPage() {
               onStagesComplete={fireNegotiation}
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <ContractsRow contracts={contracts} />
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <AnalyticsCard liveDeltas={liveDeltas} running={isRunning} />
           </div>
         </div>
 
         {/* RIGHT side: Network Activity, full height of the row */}
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-3">
           <div className="h-full">
             <LiveMessageFeed
               heading="Network Activity"
@@ -359,6 +372,8 @@ export default function MissionControlPage() {
                     return { ...prev, accepted: prev.accepted + 1, contract: prev.contract + 1 };
                   return prev;
                 });
+                // Light up the matching city on the Coverage Map
+                mapHandlerRef.current?.(e);
               }}
             />
           </div>

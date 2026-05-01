@@ -175,6 +175,12 @@ body {
 /* ─── Liquid blob buttons ─────────────────────────────────── */
 /* Idle: a perfect circle. Hover: animated border-radius morphs the
  * shape into an organic liquid blob that wobbles + scales up + glows. */
+/* Coverage map: outward ripple every time a city's status changes. */
+@keyframes map-pulse {
+  0%   { r: 6;  opacity: 0.9; }
+  100% { r: 36; opacity: 0;   }
+}
+
 @keyframes blob-morph {
   0%   { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
   25%  { border-radius: 58% 42% 55% 45% / 48% 60% 40% 52%; }
