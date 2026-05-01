@@ -13,6 +13,7 @@ import { PipelineStages } from "@/components/PipelineStages";
 import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
 import { LiveMessageFeed } from "@/components/LiveMessageFeed";
 import { AnalyticsCard } from "@/components/AnalyticsCard";
+import { MarketSwitcher, MARKETS, type Market } from "@/components/MarketSwitcher";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
 interface ConvMsg {
@@ -66,7 +67,19 @@ const DEMO_BASELINE: Metric[] = [
   { key: "contract",    label: "Under contract",      value: 4,   color: "emerald" },
 ];
 
+// Scale demo numbers by the selected market's relative size so switching
+// between markets feels like switching between actual investor accounts.
+function baselineForMarket(activeLeads: number): Metric[] {
+  // Atlanta = 142 = scale 1.0 reference. Numbers scale linearly.
+  const scale = activeLeads / 142;
+  return DEMO_BASELINE.map((m) => ({
+    ...m,
+    value: Math.max(1, Math.round(m.value * scale)),
+  }));
+}
+
 export default function MissionControlPage() {
+  const [market, setMarket] = useState<Market>(MARKETS[1]); // default: Atlanta
   const [form, setForm] = useState({
     city: "Atlanta", state: "GA", county: "Fulton",
     min_price: 100_000, max_price: 400_000, min_beds: 2,
@@ -74,6 +87,19 @@ export default function MissionControlPage() {
     notify_phone: "",
     extra_phones: [] as string[],
   });
+
+  // When the market switches: sync the buy box, scale the metric baselines.
+  const switchMarket = (m: Market) => {
+    setMarket(m);
+    if (m.key !== "all") {
+      setForm((f) => ({ ...f, city: m.city, state: m.state, county: m.county }));
+    }
+    // Reset the displayed metrics to the new market's baseline so the dashboard
+    // reflects the new context immediately (only if we're not mid-run).
+    if (phase === "idle") {
+      setMetrics(baselineForMarket(m.active_leads));
+    }
+  };
 
   const [phase, setPhase] = useState<"idle" | "stages" | "negotiating">("idle");
   const [leadId, setLeadId] = useState<string | null>(null);
@@ -85,7 +111,7 @@ export default function MissionControlPage() {
   const [contractSigned, setContractSigned] = useState(false);
   const [contractUrl, setContractUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<Metric[]>(IDLE_METRICS);
+  const [metrics, setMetrics] = useState<Metric[]>(baselineForMarket(MARKETS[1].active_leads));
   const [contracts, setContracts] = useState<MockContract[]>([]);
   const startedAtRef = useRef<number>(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -132,12 +158,13 @@ export default function MissionControlPage() {
     const TICK_MS = 60;
     const FILL_TICKS = 22; // ~22 ticks × 60ms ≈ 1.3s per metric
     const PAUSE_TICKS = 6;  // ~360ms pause between metrics
+    const baseline = baselineForMarket(market.active_leads);
     tickRef.current = setInterval(() => {
       setMetrics((prev) => {
         if (activeIdx >= TICKABLE) return prev;
         if (pauseTicks > 0) { pauseTicks -= 1; return prev; }
         const m = prev[activeIdx];
-        const target = DEMO_BASELINE[activeIdx].value;
+        const target = baseline[activeIdx].value;
         if (m.value >= target) {
           activeIdx += 1;
           pauseTicks = PAUSE_TICKS;
@@ -228,7 +255,7 @@ export default function MissionControlPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Mission Control</h1>
@@ -244,7 +271,7 @@ export default function MissionControlPage() {
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
             {phase === "idle"
-              ? "Set your buy box. Hit Run."
+              ? `${market.key === "all" ? "Across all markets" : `Viewing ${market.city}, ${market.state}`} · set your buy box, hit Run`
               : phase === "stages"
                 ? `Pipeline running · ${elapsed}s`
                 : agreedPrice
@@ -252,6 +279,7 @@ export default function MissionControlPage() {
                   : `Negotiating · ${elapsed}s`}
           </p>
         </div>
+        <MarketSwitcher current={market} onChange={switchMarket} />
       </div>
 
       {/* Layout: left buy box | right column (live feed top, contracts bottom) */}
