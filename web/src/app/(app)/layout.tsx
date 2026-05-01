@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TopNav } from "@/components/TopNav";
-import { MobileNav } from "@/components/MobileNav";
-import { MobileHeader } from "@/components/MobileHeader";
+import { MobileFAB } from "@/components/MobileFAB";
 
 export const dynamic = "force-dynamic";
 
@@ -36,15 +35,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen relative">
       {/* Mercury-style warm cream canvas — smooth, no grid */}
       <div className="fixed inset-0 -z-20 bg-canvas" />
-      {/* Desktop layout: top nav only, no sidebar */}
-      <main className="flex-1 overflow-auto relative pb-20 md:pb-0">
-        <MobileHeader />
+      {/* Desktop: top nav. Mobile: pure content + a single floating menu */}
+      <main className="flex-1 overflow-auto relative">
         <div className="hidden md:block">
           <TopNav />
         </div>
         {children}
       </main>
-      <MobileNav />
+      <MobileFAB />
     </div>
   );
 }

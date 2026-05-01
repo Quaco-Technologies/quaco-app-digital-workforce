@@ -75,36 +75,36 @@ export function AnalyticsCard() {
         </Link>
       </div>
 
-      {/* 4 mini KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <MiniKPI icon={<Activity size={11} />} label="Records" value={scraped.toLocaleString()} trend={trend6w} color="#64748b" />
-        <MiniKPI icon={<Target size={11} />} label="Reply rate" value={pct(replyRate)} trend={replyTrend} color="#3b82f6" />
-        <MiniKPI icon={<Zap size={11} />} label="Close rate" value={pct(closeRate)} trend={closeTrend} color="#f59e0b" />
-        <MiniKPI icon={<DollarSign size={11} />} label="Cost/deal" value={fmt$$(costPerDeal)} color="#10b981" />
+      {/* Inline KPIs — compact row, no sparklines */}
+      <div className="flex items-center gap-5 mb-4 flex-wrap text-[12px]">
+        <Stat icon={<Activity size={11} />} label="Records" value={scraped.toLocaleString()} color="#64748b" />
+        <Stat icon={<Target size={11} />} label="Reply" value={pct(replyRate)} color="#3b82f6" />
+        <Stat icon={<Zap size={11} />} label="Close" value={pct(closeRate)} color="#f59e0b" />
+        <Stat icon={<DollarSign size={11} />} label="Cost/deal" value={fmt$$(costPerDeal)} color="#10b981" />
       </div>
 
-      {/* Mini funnel */}
-      <div className="space-y-1.5">
-        {funnel.map((stage) => {
+      {/* Compact horizontal funnel — single row, all stages inline */}
+      <div className="grid grid-cols-7 gap-1">
+        {funnel.map((stage, i) => {
           const widthPct = maxFunnel > 0 ? (stage.count / maxFunnel) * 100 : 0;
           return (
-            <div key={stage.key}>
-              <div className="flex items-center justify-between text-[11px] mb-0.5">
-                <span className="text-slate-600">{stage.label}</span>
-                <div className="flex items-center gap-2">
-                  {stage.conversion != null && (
-                    <span className={`font-medium ${stage.conversion >= 0.2 ? "text-emerald-600" : stage.conversion >= 0.05 ? "text-amber-600" : "text-slate-400"}`}>
-                      {pct(stage.conversion)}
-                    </span>
-                  )}
-                  <span className="font-semibold text-slate-900 tabular-nums w-14 text-right">
-                    {stage.count.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-              <div className="bg-slate-100 rounded h-1.5 relative overflow-hidden">
+            <div key={stage.key} className="min-w-0">
+              <p className="text-[9px] uppercase tracking-wider text-slate-400 truncate" title={stage.label}>
+                {stage.label.split(" ").slice(-1)[0]}
+              </p>
+              <p className="text-[15px] font-semibold text-slate-900 tabular-nums leading-tight">
+                {stage.count.toLocaleString()}
+              </p>
+              {stage.conversion != null ? (
+                <p className={`text-[10px] font-medium ${stage.conversion >= 0.2 ? "text-emerald-600" : stage.conversion >= 0.05 ? "text-amber-600" : "text-slate-400"}`}>
+                  {pct(stage.conversion)}
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-400">—</p>
+              )}
+              <div className="mt-1 h-1 rounded bg-slate-100 overflow-hidden">
                 <div
-                  className="absolute left-0 top-0 h-full bg-slate-900 rounded transition-all"
+                  className="h-full bg-slate-900 rounded transition-all"
                   style={{ width: `${Math.max(widthPct, 0.5)}%` }}
                 />
               </div>
@@ -116,25 +116,19 @@ export function AnalyticsCard() {
   );
 }
 
-function MiniKPI({
-  icon, label, value, trend, color,
+function Stat({
+  icon, label, value, color,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  trend?: number[];
   color: string;
 }) {
   return (
-    <div className="bg-slate-50/60 border border-slate-100 rounded-lg px-2.5 py-2">
-      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium uppercase tracking-wider mb-0.5">
-        <span style={{ color }}>{icon}</span>
-        {label}
-      </div>
-      <p className="text-base font-bold text-slate-900 tabular-nums">{value}</p>
-      {trend && trend.length > 1 && (
-        <div className="mt-0.5"><SparkLine values={trend} width={80} height={16} stroke={color} fill={`${color}22`} /></div>
-      )}
+    <div className="flex items-center gap-2">
+      <span style={{ color }}>{icon}</span>
+      <span className="text-slate-500">{label}</span>
+      <span className="font-semibold text-slate-900 tabular-nums">{value}</span>
     </div>
   );
 }
