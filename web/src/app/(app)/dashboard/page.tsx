@@ -274,18 +274,6 @@ export default function MissionControlPage() {
             contractUrl={contractUrl}
             leadId={leadId}
             onStagesComplete={fireNegotiation}
-            onSimulateReply={async (body) => {
-              if (!leadId) return;
-              try {
-                const c = await api.demo.simulateReply(leadId, body);
-                setConversation(c.messages);
-                if (c.agreed_price) setAgreedPrice(c.agreed_price);
-                if (c.contract_email_sent_to) {
-                  setContractEmail(c.contract_email_sent_to);
-                  setContractDelivered(c.contract_email_delivered);
-                }
-              } catch { /* poll catches */ }
-            }}
           />
 
           {/* RIGHT BOTTOM: Ready to Sign */}
@@ -456,7 +444,7 @@ function BuyBoxCard({
 function LiveFeedCard({
   phase, metrics, conversation, recipientPhone, agreedPrice,
   contractEmail, contractDelivered, contractSigned, contractUrl,
-  leadId, onStagesComplete, onSimulateReply,
+  leadId, onStagesComplete,
 }: {
   phase: "idle" | "stages" | "negotiating";
   metrics: Metric[];
@@ -469,23 +457,12 @@ function LiveFeedCard({
   contractUrl: string | null;
   leadId: string | null;
   onStagesComplete: () => void;
-  onSimulateReply: (body: string) => void;
 }) {
-  const [draft, setDraft] = useState("");
-  const [thinking, setThinking] = useState(false);
   const [activeModal, setActiveModal] = useState<MetricKind | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [conversation]);
-
-  const sendReply = async (text: string) => {
-    const body = text.trim();
-    if (!body || thinking || !leadId) return;
-    setThinking(true);
-    try { await onSimulateReply(body); setDraft(""); }
-    finally { setThinking(false); }
-  };
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-sm">
@@ -563,36 +540,6 @@ function LiveFeedCard({
             </div>
           )}
 
-          {/* Real path: just reply on your phone — the AI handles the rest.
-              The textbox below is only a fallback for when SMS hasn't been
-              delivered (e.g. Twilio config / carrier issues). */}
-          {!agreedPrice && conversation.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-[11px] text-slate-500 text-center mb-2">
-                Reply to the text on your phone — the AI will counter live.
-              </p>
-              <details className="text-[10px] text-slate-400">
-                <summary className="cursor-pointer text-center hover:text-slate-600">Or simulate the seller&apos;s reply →</summary>
-                <div className="flex gap-1.5 mt-2">
-                  <input
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendReply(draft); } }}
-                    placeholder="Type what the seller would text back…"
-                    disabled={thinking}
-                    className="flex-1 bg-white border border-slate-200 text-slate-900 placeholder-slate-400 text-xs px-3 py-2 rounded-lg focus:outline-none focus:border-slate-400"
-                  />
-                  <button
-                    onClick={() => sendReply(draft)}
-                    disabled={thinking || !draft.trim()}
-                    className="bg-slate-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
-                  >
-                    {thinking ? "…" : "Send"}
-                  </button>
-                </div>
-              </details>
-            </div>
-          )}
 
           {/* Contract sent — with Sign Now button until signed */}
           {contractEmail && (
