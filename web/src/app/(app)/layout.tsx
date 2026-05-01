@@ -34,9 +34,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen relative">
-      {/* Premium fintech backdrop: subtle dot grid over a near-white wash */}
-      <div className="fixed inset-0 -z-20 bg-[#fafbfc]" />
-      <div className="fixed inset-0 -z-10 bg-grid opacity-60 pointer-events-none" />
+      {/* Premium light canvas: faint radial accent + subtle dot grid */}
+      <div className="fixed inset-0 -z-20 bg-canvas" />
+      <div className="fixed inset-0 -z-10 bg-grid-light opacity-60 pointer-events-none" />
       {/* Desktop sidebar — hidden on mobile */}
       <div className="hidden md:block">
         <Sidebar />

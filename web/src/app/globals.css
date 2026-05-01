@@ -1,42 +1,109 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafbfc;
-  --foreground: #0a0e1a;
+  --bg: #fafbfc;
+  --surface: #ffffff;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text: #0f172a;
+  --text-dim: #475569;
+  --text-mute: #94a3b8;
+  --accent: #0ea5e9;          /* sky-500 */
+  --accent-glow: rgba(14, 165, 233, 0.18);
+  --success: #10b981;
+  --warn: #f59e0b;
+  --danger: #f43f5e;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";  /* refined Inter */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* All tabular numbers throughout the app — fintech-grade legibility */
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* Subtle dot-grid background pattern for surfaces that should feel "premium" */
-.bg-grid {
+/* ─── Surfaces ─────────────────────────────────────────────── */
+/* The premium card: white with a barely-there top gradient, hairline border,
+ * and a thin shadow — that's all you need for the Stripe/Mercury feel. */
+.surface {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,1), rgba(250,251,253,1));
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,1) inset,
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 16px -4px rgba(15, 23, 42, 0.04);
+  border-radius: 14px;
+}
+.surface-strong {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 4px 24px -8px rgba(15, 23, 42, 0.06);
+}
+
+/* Premium light backdrop: faint accent glow at top + dot grid + neutral wash */
+.bg-canvas {
+  background:
+    radial-gradient(ellipse 70% 35% at 50% -8%,  rgba(14, 165, 233, 0.06), transparent 60%),
+    radial-gradient(ellipse 60% 30% at 100% 100%, rgba(99, 102, 241, 0.04), transparent 60%),
+    var(--bg);
+}
+.bg-grid-light {
   background-image:
     radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.05) 1px, transparent 0);
-  background-size: 24px 24px;
+  background-size: 28px 28px;
 }
 
-/* Crisp ring focus state used on inputs / buttons */
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400;
+/* Accent gradients for branded surfaces */
+.bg-brand-gradient {
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #10b981 100%);
+}
+.bg-brand-gradient-soft {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(99, 102, 241, 0.05), rgba(16, 185, 129, 0.06));
 }
 
-/* ─── Motion ─── */
+/* Glow on focus / accent state */
+.glow-accent {
+  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.4),
+              0 4px 24px -4px rgba(14, 165, 233, 0.30);
+}
+
+/* Premium button — slate-900 base with subtle inner highlight + outer glow */
+.btn-primary {
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  color: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 1px 2px rgba(15, 23, 42, 0.20),
+    0 4px 16px -4px rgba(15, 23, 42, 0.30);
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #334155, #1e293b);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 2px 8px rgba(15, 23, 42, 0.24),
+    0 8px 24px -8px rgba(15, 23, 42, 0.35);
+}
+.btn-primary:disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
+  border-color: transparent;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ─── Motion ─────────────────────────────────────────────── */
 @keyframes slide-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0)   scale(1); }
@@ -53,7 +120,7 @@ body {
 .animate-fade-in { animation: fade-in 360ms ease-out both; }
 
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
+  0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
@@ -71,14 +138,7 @@ body {
   animation: gradient-shift 8s ease infinite;
 }
 
-/* Pulsating LIVE indicator glow */
-@keyframes live-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
-  50%      { box-shadow: 0 0 0 4px rgba(244, 63, 94, 0); }
-}
-.animate-live-glow { animation: live-glow 1.6s ease-in-out infinite; }
-
-/* Stagger helpers */
+/* Stagger entry */
 .stagger-children > * { animation: fade-up 360ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .stagger-children > *:nth-child(1) { animation-delay: 0ms;   }
 .stagger-children > *:nth-child(2) { animation-delay: 60ms;  }
@@ -89,6 +149,8 @@ body {
 .stagger-children > *:nth-child(7) { animation-delay: 360ms; }
 .stagger-children > *:nth-child(8) { animation-delay: 420ms; }
 
-/* Premium card hover lift */
-.card-lift { transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1); }
-.card-lift:hover { transform: translateY(-1px); box-shadow: 0 8px 24px -8px rgba(15, 23, 42, 0.08); }
+/* Big display number */
+.num-display {
+  font-feature-settings: "tnum", "ss01", "cv11";
+  letter-spacing: -0.02em;
+}
