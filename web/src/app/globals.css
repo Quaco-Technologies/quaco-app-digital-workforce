@@ -154,3 +154,67 @@ body {
   font-feature-settings: "tnum", "ss01", "cv11";
   letter-spacing: -0.02em;
 }
+
+/* ─── Liquid blob buttons ─────────────────────────────────── */
+/* Idle: a perfect circle. Hover: animated border-radius morphs the
+ * shape into an organic liquid blob that wobbles + scales up + glows. */
+@keyframes blob-morph {
+  0%   { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
+  25%  { border-radius: 58% 42% 55% 45% / 48% 60% 40% 52%; }
+  50%  { border-radius: 45% 55% 38% 62% / 60% 42% 58% 40%; }
+  75%  { border-radius: 52% 48% 60% 40% / 42% 55% 45% 58%; }
+  100% { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
+}
+
+.blob {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: border-radius, transform;
+}
+.blob:hover {
+  width: 52px;
+  height: 52px;
+  animation: blob-morph 3s ease-in-out infinite;
+  transform: scale(1.05);
+}
+
+.blob-light {
+  background: #ffffff;
+  color: rgb(71 85 105);
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.08),
+    0 6px 16px -4px rgba(15, 23, 42, 0.10);
+}
+.blob-light:hover {
+  color: rgb(15 23 42);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.10),
+    0 12px 32px -8px rgba(59, 91, 219, 0.18),
+    0 0 0 4px rgba(59, 91, 219, 0.06);
+}
+
+.blob-accent {
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: #ffffff;
+  box-shadow:
+    0 2px 6px rgba(59, 91, 219, 0.25),
+    0 8px 20px -4px rgba(59, 91, 219, 0.30);
+}
+.blob-accent:hover {
+  box-shadow:
+    0 4px 12px rgba(59, 91, 219, 0.35),
+    0 16px 36px -8px rgba(59, 91, 219, 0.45),
+    0 0 0 4px rgba(59, 91, 219, 0.10);
+}
