@@ -164,7 +164,7 @@ export function AnalyticsCard({ liveDeltas, running = false }: Props) {
               </div>
               <div className="bg-slate-100 rounded h-1.5 relative overflow-hidden">
                 <div
-                  className="absolute left-0 top-0 h-full bg-slate-900 rounded transition-all duration-700"
+                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 to-blue-500 rounded transition-all duration-700"
                   style={{ width: `${Math.max(widthPct, 0.5)}%` }}
                 />
               </div>
