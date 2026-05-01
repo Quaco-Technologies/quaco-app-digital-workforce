@@ -354,7 +354,7 @@ function BuyBoxCard({
   error: string | null;
 }) {
 
-  const inputClass = "w-full px-3 py-2 text-sm border border-white/10 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400";
+  const inputClass = "w-full px-3 py-2 text-sm border border-slate-200/60 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400";
   const labelClass = "block text-[11px] font-medium text-slate-500 mb-1";
 
   return (
@@ -393,15 +393,15 @@ function BuyBoxCard({
 
         <div>
           <label className={labelClass}>Min beds</label>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
                 onClick={() => set("min_beds", n)}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   form.min_beds === n
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "border-white/10 text-slate-600 hover:border-slate-300 bg-white"
+                    ? "bg-white text-slate-900 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)]"
+                    : "text-slate-500 hover:bg-white/60"
                 }`}
               >
                 {n}+
@@ -412,15 +412,15 @@ function BuyBoxCard({
 
         <div>
           <label className={labelClass}>Types</label>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {PROPERTY_TYPES.map((p) => (
               <button
                 key={p.value}
                 onClick={() => toggleType(p.value)}
                 className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
                   form.property_types.includes(p.value)
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "bg-white text-slate-900 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)]"
+                    : "text-slate-500 hover:bg-white/60"
                 }`}
               >
                 {p.label}
@@ -511,14 +511,14 @@ function LiveFeedCard({
 
       {/* Stages animation while pipeline is "running" */}
       {phase === "stages" && (
-        <div className="bg-slate-50 border border-white/5 rounded-xl p-4 mt-2">
+        <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-4 mt-2">
           <PipelineStagesLight onComplete={onStagesComplete} />
         </div>
       )}
 
       {/* Conversation thread */}
       {phase === "negotiating" && (
-        <div className="border-t border-white/5 pt-4 mt-2">
+        <div className="border-t border-slate-200/60 pt-4 mt-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               Negotiating with {recipientPhone || "owner"}
