@@ -12,6 +12,7 @@ import { CountUp } from "@/components/CountUp";
 import { PipelineStages } from "@/components/PipelineStages";
 import { MetricDetailModal, type MetricKind } from "@/components/MetricDetailModal";
 import { LiveMessageFeed } from "@/components/LiveMessageFeed";
+import { AnalyticsCard } from "@/components/AnalyticsCard";
 import { mockContracts, type MockContract } from "@/lib/mockData";
 
 interface ConvMsg {
@@ -280,6 +281,9 @@ export default function MissionControlPage() {
 
           {/* RIGHT BOTTOM: Ready to Sign */}
           <ContractsRow contracts={contracts} />
+
+          {/* RIGHT FOOTER: Condensed analytics */}
+          <AnalyticsCard />
         </div>
       </div>
     </div>
