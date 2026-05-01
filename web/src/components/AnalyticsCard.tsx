@@ -124,7 +124,7 @@ export function AnalyticsCard({ liveDeltas, running = false }: Props) {
   const liveCloseRate = Math.max(0, Math.min(1, closeRate + rateJitter.close));
 
   return (
-    <div className="bg-white border border-slate-200/70 rounded-xl p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="bg-white rounded-xl p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06),0_8px_24px_-6px_rgba(15,23,42,0.08),0_16px_40px_-16px_rgba(15,23,42,0.10)]">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Analytics</h3>

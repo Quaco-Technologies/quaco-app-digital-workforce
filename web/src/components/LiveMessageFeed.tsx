@@ -65,11 +65,7 @@ export function LiveMessageFeed({ heading = "Network Activity", running = false,
 
   return (
     <div className="space-y-3 h-full flex flex-col">
-      <div className="flex items-center justify-between shrink-0 px-1">
-        <h3 className="text-[14px] font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-          <MessageSquare size={13} strokeWidth={1.75} className="text-slate-400" />
-          {heading}
-        </h3>
+      <div className="flex items-center justify-end shrink-0 px-1">
         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-rose-600">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />

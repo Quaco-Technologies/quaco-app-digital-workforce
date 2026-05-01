@@ -380,7 +380,7 @@ function BuyBoxCard({
   error: string | null;
 }) {
 
-  const inputClass = "w-full px-3 py-2 text-sm border border-slate-200/60 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400";
+  const inputClass = "w-full px-3 py-2 text-sm rounded-lg bg-white text-slate-900 shadow-[0_1px_3px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:shadow-[0_2px_8px_rgba(59,91,219,0.12)]";
   const labelClass = "block text-[11px] font-medium text-slate-500 mb-1";
 
   return (
@@ -426,7 +426,7 @@ function BuyBoxCard({
                 onClick={() => set("min_beds", n)}
                 className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   form.min_beds === n
-                    ? "bg-white text-slate-900 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)]"
+                    ? "bg-white text-slate-900 shadow-[0_2px_6px_-1px_rgba(15,23,42,0.08),0_4px_12px_-4px_rgba(15,23,42,0.10)]"
                     : "text-slate-500 hover:bg-white/60"
                 }`}
               >
@@ -445,7 +445,7 @@ function BuyBoxCard({
                 onClick={() => toggleType(p.value)}
                 className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
                   form.property_types.includes(p.value)
-                    ? "bg-white text-slate-900 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)]"
+                    ? "bg-white text-slate-900 shadow-[0_2px_6px_-1px_rgba(15,23,42,0.08),0_4px_12px_-4px_rgba(15,23,42,0.10)]"
                     : "text-slate-500 hover:bg-white/60"
                 }`}
               >
@@ -651,7 +651,7 @@ function MetricTile({ m, active, onClick }: { m: Metric; active: boolean; onClic
     <button
       type="button"
       onClick={onClick}
-      className="relative text-left rounded-xl bg-white border border-slate-200/60 px-4 py-3.5 transition-all duration-200 hover:border-slate-300/80 hover:shadow-[0_4px_12px_-4px_rgba(15,23,42,0.06)] group overflow-hidden"
+      className="relative text-left rounded-xl bg-white px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.06),0_4px_12px_-4px_rgba(15,23,42,0.08)] transition-all duration-200 hover:shadow-[0_2px_6px_rgba(15,23,42,0.08),0_8px_20px_-4px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 group overflow-hidden"
     >
       <span className="absolute top-3 right-3 flex h-1.5 w-1.5">
         {active && <span className={`absolute inline-flex h-full w-full rounded-full ${c.ring} animate-ping`} />}
