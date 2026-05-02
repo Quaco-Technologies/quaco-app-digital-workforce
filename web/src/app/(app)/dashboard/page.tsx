@@ -262,7 +262,18 @@ export default function MissionControlPage() {
   const elapsed = phase !== "idle" ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-fade-in">
+    <>
+      {/* Bare map pinned to the left margin of the screen. Only shows when
+          the viewport is wider than the 1280px centered content so it never
+          overlaps the dashboard. */}
+      <div className="hidden xl:block fixed left-0 top-40 bottom-8 w-[calc((100vw-1280px)/2)] max-w-[480px] z-0 pl-2 pr-4">
+        <USMapCard
+          running={isRunning}
+          focusCity={market.key === "all" ? undefined : market.city}
+          registerEventSink={registerMapSink}
+        />
+      </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Mercury-style hero: greeting + market chip + action pill row */}
       <div className="mb-6">
         <div className="flex items-end justify-between gap-3 mb-4">
@@ -313,14 +324,7 @@ export default function MissionControlPage() {
             then [Ready to Sign] full-width, then [Analytics] full-width.
           RIGHT (col-span-3): Network Activity, full-height column */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 lg:items-stretch">
-        <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 lg:auto-rows-min">
-          <div className="md:col-span-1">
-            <USMapCard
-              running={isRunning}
-              focusCity={market.key === "all" ? undefined : market.city}
-              registerEventSink={registerMapSink}
-            />
-          </div>
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:auto-rows-min">
           <div className="md:col-span-1">
             <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
           </div>
@@ -339,16 +343,10 @@ export default function MissionControlPage() {
               onStagesComplete={fireNegotiation}
             />
           </div>
-          <div className="md:col-span-3">
-            <ContractsRow contracts={contracts} />
-          </div>
-          <div className="md:col-span-3">
-            <AnalyticsCard liveDeltas={liveDeltas} running={isRunning} />
-          </div>
         </div>
 
         {/* RIGHT side: Network Activity, full height of the row */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-4">
           <div className="h-full">
             <LiveMessageFeed
               heading="Network Activity"
@@ -380,6 +378,7 @@ export default function MissionControlPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

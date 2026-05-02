@@ -101,15 +101,8 @@ export function USMapCard({ running = false, focusCity, registerEventSink }: Pro
   }, [registerEventSink]);
 
   return (
-    <div className="surface p-5 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3 shrink-0">
-        <div>
-          <h3 className="text-[15px] font-semibold text-slate-900 tracking-tight">Coverage Map</h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">{running ? "Lighting up live" : "12 active markets"}</p>
-        </div>
-        <Legend />
-      </div>
-
+    <div className="w-full h-full flex flex-col relative">
+      {/* Legend below the map, low-key */}
       <div className="flex-1 min-h-0 relative overflow-hidden">
         <svg viewBox="0 0 1000 560" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
@@ -206,6 +199,19 @@ export function USMapCard({ running = false, focusCity, registerEventSink }: Pro
             })}
           </g>
         </svg>
+      </div>
+
+      <div className="shrink-0 flex items-center justify-between px-2 pt-2">
+        <Legend />
+        {running && (
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-rose-600">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
+            </span>
+            Live
+          </span>
+        )}
       </div>
     </div>
   );
