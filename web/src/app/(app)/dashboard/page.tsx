@@ -262,7 +262,7 @@ export default function MissionControlPage() {
   const elapsed = phase !== "idle" ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto animate-fade-in">
       {/* Mercury-style hero: greeting + market chip + action pill row */}
       <div className="mb-6">
         <div className="flex items-end justify-between gap-3 mb-4">
@@ -299,12 +299,13 @@ export default function MissionControlPage() {
         </div>
       </div>
 
-      {/* Buy Box + Live Pipeline, side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:items-stretch">
-        <div>
+      {/* Stacked: Buy Box on top by default, Live Pipeline underneath.
+          When Go is pressed (isRunning) they smoothly swap positions. */}
+      <SwapStack
+        topWhenIdle={
           <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
-        </div>
-        <div>
+        }
+        bottomWhenIdle={
           <LiveFeedCard
             phase={phase}
             metrics={metrics}
@@ -318,8 +319,9 @@ export default function MissionControlPage() {
             leadId={leadId}
             onStagesComplete={fireNegotiation}
           />
-        </div>
-      </div>
+        }
+        swapped={isRunning}
+      />
 
       {/* Hidden but kept mounted: drives metric ticks even though Network
           Activity is no longer visible. */}
@@ -347,6 +349,74 @@ export default function MissionControlPage() {
             mapHandlerRef.current?.(e);
           }}
         />
+      </div>
+    </div>
+  );
+}
+
+// ─── SWAP STACK ──────────────────────────────────────────────────────────────
+// Two cards stacked vertically. When `swapped` toggles, they slide past each
+// other into a new order using measured heights — feels like a Mercury card
+// shuffle, not a layout jump.
+function SwapStack({
+  topWhenIdle, bottomWhenIdle, swapped,
+}: {
+  topWhenIdle: React.ReactNode;
+  bottomWhenIdle: React.ReactNode;
+  swapped: boolean;
+}) {
+  const aRef = useRef<HTMLDivElement>(null);
+  const bRef = useRef<HTMLDivElement>(null);
+  const [h, setH] = useState({ a: 480, b: 320 });
+  const GAP = 24;
+
+  useEffect(() => {
+    const update = () => {
+      if (aRef.current) setH((p) => ({ ...p, a: aRef.current!.offsetHeight }));
+      if (bRef.current) setH((p) => ({ ...p, b: bRef.current!.offsetHeight }));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (aRef.current) ro.observe(aRef.current);
+    if (bRef.current) ro.observe(bRef.current);
+    window.addEventListener("resize", update);
+    return () => { ro.disconnect(); window.removeEventListener("resize", update); };
+  }, []);
+
+  // a = topWhenIdle (Buy Box), b = bottomWhenIdle (Live Pipeline)
+  const aTop = swapped ? h.b + GAP : 0;
+  const bTop = swapped ? 0 : h.a + GAP;
+  const total = h.a + h.b + GAP;
+
+  const tx = "top 700ms cubic-bezier(0.16, 1, 0.3, 1), transform 700ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 400ms ease";
+
+  return (
+    <div className="relative w-full" style={{ height: total, transition: "height 700ms cubic-bezier(0.16, 1, 0.3, 1)" }}>
+      <div
+        ref={aRef}
+        className="absolute left-0 right-0"
+        style={{
+          top: aTop,
+          transform: swapped ? "scale(0.985)" : "scale(1)",
+          transformOrigin: "center top",
+          transition: tx,
+          zIndex: swapped ? 1 : 2,
+        }}
+      >
+        {topWhenIdle}
+      </div>
+      <div
+        ref={bRef}
+        className="absolute left-0 right-0"
+        style={{
+          top: bTop,
+          transform: swapped ? "scale(1)" : "scale(0.985)",
+          transformOrigin: "center top",
+          transition: tx,
+          zIndex: swapped ? 2 : 1,
+        }}
+      >
+        {bottomWhenIdle}
       </div>
     </div>
   );
