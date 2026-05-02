@@ -262,17 +262,6 @@ export default function MissionControlPage() {
   const elapsed = phase !== "idle" ? Math.max(0, Math.round(Date.now() / 1000 - startedAtRef.current)) : 0;
 
   return (
-    <>
-      {/* Bare map pinned to the left margin of the screen. Only shows when
-          the viewport is wider than the 1280px centered content so it never
-          overlaps the dashboard. */}
-      <div className="hidden xl:block fixed left-0 top-40 bottom-8 w-[calc((100vw-1280px)/2)] max-w-[480px] z-0 pl-2 pr-4">
-        <USMapCard
-          running={isRunning}
-          focusCity={market.key === "all" ? undefined : market.city}
-          registerEventSink={registerMapSink}
-        />
-      </div>
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
       {/* Mercury-style hero: greeting + market chip + action pill row */}
       <div className="mb-6">
@@ -285,15 +274,6 @@ export default function MissionControlPage() {
               {phase === "idle"
                 ? (market.key === "all" ? "Across all markets" : `Viewing ${market.city}, ${market.state}`)
                 : `${elapsed}s elapsed`}
-              {isRunning && (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-rose-600">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-ping" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
-                  </span>
-                  Live
-                </span>
-              )}
             </p>
           </div>
           <MarketSwitcher current={market} onChange={switchMarket} />
@@ -319,66 +299,56 @@ export default function MissionControlPage() {
         </div>
       </div>
 
-      {/* New layout:
-          LEFT (col-span-9): top row [US Map | Buy Box | Live Pipeline] (3 cols),
-            then [Ready to Sign] full-width, then [Analytics] full-width.
-          RIGHT (col-span-3): Network Activity, full-height column */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 lg:items-stretch">
-        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:auto-rows-min">
-          <div className="md:col-span-1">
-            <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
-          </div>
-          <div className="md:col-span-1">
-            <LiveFeedCard
-              phase={phase}
-              metrics={metrics}
-              conversation={conversation}
-              recipientPhone={recipientPhone}
-              agreedPrice={agreedPrice}
-              contractEmail={contractEmail}
-              contractDelivered={contractDelivered}
-              contractSigned={contractSigned}
-              contractUrl={contractUrl}
-              leadId={leadId}
-              onStagesComplete={fireNegotiation}
-            />
-          </div>
+      {/* Buy Box + Live Pipeline, side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 lg:items-stretch">
+        <div>
+          <BuyBoxCard form={form} set={set} toggleType={toggleType} startDemo={startDemo} isRunning={isRunning} error={error} />
         </div>
-
-        {/* RIGHT side: Network Activity, full height of the row */}
-        <div className="lg:col-span-4">
-          <div className="h-full">
-            <LiveMessageFeed
-              heading="Network Activity"
-              running={isRunning}
-              onEvent={(e: FeedEvent) => {
-                // Bump Live Pipeline metrics
-                setMetrics((prev) => prev.map((m) => {
-                  if (e.type === "spawned"     && m.key === "contacted")    return { ...m, value: m.value + 1 };
-                  if (e.type === "negotiating" && m.key === "negotiating")  return { ...m, value: m.value + 1 };
-                  if (e.type === "completed" && e.outcome === "agreed") {
-                    if (m.key === "accepted") return { ...m, value: m.value + 1 };
-                    if (m.key === "contract") return { ...m, value: m.value + 1 };
-                  }
-                  return m;
-                }));
-                // Bump Analytics deltas for the funnel
-                setLiveDeltas((prev) => {
-                  if (e.type === "spawned")     return { ...prev, contacted: prev.contacted + 1 };
-                  if (e.type === "negotiating") return { ...prev, negotiating: prev.negotiating + 1 };
-                  if (e.type === "completed" && e.outcome === "agreed")
-                    return { ...prev, accepted: prev.accepted + 1, contract: prev.contract + 1 };
-                  return prev;
-                });
-                // Light up the matching city on the Coverage Map
-                mapHandlerRef.current?.(e);
-              }}
-            />
-          </div>
+        <div>
+          <LiveFeedCard
+            phase={phase}
+            metrics={metrics}
+            conversation={conversation}
+            recipientPhone={recipientPhone}
+            agreedPrice={agreedPrice}
+            contractEmail={contractEmail}
+            contractDelivered={contractDelivered}
+            contractSigned={contractSigned}
+            contractUrl={contractUrl}
+            leadId={leadId}
+            onStagesComplete={fireNegotiation}
+          />
         </div>
       </div>
+
+      {/* Hidden but kept mounted: drives metric ticks even though Network
+          Activity is no longer visible. */}
+      <div className="hidden">
+        <LiveMessageFeed
+          heading=""
+          running={isRunning}
+          onEvent={(e: FeedEvent) => {
+            setMetrics((prev) => prev.map((m) => {
+              if (e.type === "spawned"     && m.key === "contacted")    return { ...m, value: m.value + 1 };
+              if (e.type === "negotiating" && m.key === "negotiating")  return { ...m, value: m.value + 1 };
+              if (e.type === "completed" && e.outcome === "agreed") {
+                if (m.key === "accepted") return { ...m, value: m.value + 1 };
+                if (m.key === "contract") return { ...m, value: m.value + 1 };
+              }
+              return m;
+            }));
+            setLiveDeltas((prev) => {
+              if (e.type === "spawned")     return { ...prev, contacted: prev.contacted + 1 };
+              if (e.type === "negotiating") return { ...prev, negotiating: prev.negotiating + 1 };
+              if (e.type === "completed" && e.outcome === "agreed")
+                return { ...prev, accepted: prev.accepted + 1, contract: prev.contract + 1 };
+              return prev;
+            });
+            mapHandlerRef.current?.(e);
+          }}
+        />
+      </div>
     </div>
-    </>
   );
 }
 
