@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
 
+    # Nous Research Hermes — OpenAI-compatible endpoint, powers the Hermes agent
+    nous_api_key: str = ""
+    nous_base_url: str = "https://inference-api.nousresearch.com/v1"
+    nous_model: str = "Hermes-4-405B"
+
     # Supabase
     supabase_url: str
     supabase_key: str
