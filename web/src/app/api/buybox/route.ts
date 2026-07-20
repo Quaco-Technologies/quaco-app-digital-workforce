@@ -9,7 +9,13 @@ export const maxDuration = 60;
 // This endpoint is intentionally open — /buybox is shared as a plain link with
 // no sign-in. That means anyone with the URL can spend Apify credit, so the
 // cost of a single run is capped and repeat callers are throttled.
-const PUBLIC_TRACE_CAP = 10;
+//
+// The cap is set by the 60s function timeout, not by cost: skip traces are
+// $0.007 each, but they run sequentially at roughly a third of a second apiece.
+// 50 traces measured 26s on a small area, and a dense metro spends ~20s on the
+// listing scrape before tracing starts, so 50 leaves real headroom under the
+// limit while 100 would not.
+const PUBLIC_TRACE_CAP = 50;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_RUNS_PER_WINDOW = 5;
 

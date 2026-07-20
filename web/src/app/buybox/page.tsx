@@ -21,7 +21,7 @@ export default function PublicBuyBoxPage() {
           </p>
         </div>
 
-        <BuyBoxSearch maxTrace={10} />
+        <BuyBoxSearch maxTrace={50} />
 
         <p className="text-xs text-slate-400 mt-10">
           Owner data via public records. Verify before contacting and follow all applicable

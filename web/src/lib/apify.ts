@@ -9,6 +9,47 @@ export interface SkipTracePhone {
   type: string;
   provider: string;
   lastReported: string;
+  // "Primary" / "Secondary" / "Alt" for reachable mobiles, "" for landlines.
+  label: string;
+}
+
+// "Last reported Jun 2026" → a sortable timestamp. The actor sometimes puts a
+// carrier name in this column instead of a date, so anything unparseable sorts
+// last rather than throwing off the order.
+const MONTHS: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+function reportedAt(lastReported: string): number {
+  const m = lastReported.match(/([A-Za-z]{3})[a-z]*\s+(\d{4})/);
+  if (!m) return 0;
+  const month = MONTHS[m[1].toLowerCase()];
+  if (month === undefined) return 0;
+  return new Date(Number(m[2]), month).getTime();
+}
+
+const isMobile = (p: SkipTracePhone) => /wireless|mobile|cell/i.test(p.type);
+
+// Investors call and text these numbers, so a mobile beats a landline even when
+// the landline was reported more recently — you can't text a landline, and the
+// listed landline is often a relative's or a disconnected legacy record. Within
+// each group the most recently reported number wins.
+function rankPhones(phones: SkipTracePhone[]): SkipTracePhone[] {
+  const sorted = [...phones].sort((a, b) => {
+    if (isMobile(a) !== isMobile(b)) return isMobile(a) ? -1 : 1;
+    return reportedAt(b.lastReported) - reportedAt(a.lastReported);
+  });
+
+  let mobileSeen = 0;
+  return sorted.map((p) => {
+    if (!isMobile(p)) return { ...p, label: "" };
+    mobileSeen += 1;
+    return {
+      ...p,
+      label: mobileSeen === 1 ? "Primary" : mobileSeen === 2 ? "Secondary" : "Alt",
+    };
+  });
 }
 
 export interface SkipTraceResult {
@@ -79,6 +120,7 @@ export function normalizeSkipRow(row: Record<string, unknown>): SkipTraceResult 
       type: str(row, `Phone-${i} Type`),
       provider: str(row, `Phone-${i} Provider`),
       lastReported: str(row, `Phone-${i} Last Reported`),
+      label: "",
     });
   }
   // The actor returns a sentinel name row when nothing matched.
@@ -106,7 +148,7 @@ export function normalizeSkipRow(row: Record<string, unknown>): SkipTraceResult 
       .join(", "),
     county: str(row, "County Name"),
     emails,
-    phones,
+    phones: rankPhones(phones),
   };
 }
 
@@ -283,6 +325,7 @@ export async function runBuyBox(box: BuyBox): Promise<{
   scanned: number;
   capped: boolean;
   traced: number;
+  noPhone: number;
   leads: BuyBoxLead[];
 }> {
   const { props: all, scanned, capped } = await scrapeProperties(box);
@@ -290,32 +333,37 @@ export async function runBuyBox(box: BuyBox): Promise<{
   const target = all.slice(0, limit);
 
   if (!target.length) {
-    return { area: box.area, found: 0, scanned, capped, traced: 0, leads: [] };
+    return { area: box.area, found: 0, scanned, capped, traced: 0, noPhone: 0, leads: [] };
   }
 
   // One batched skip-trace call for all addresses; results carry "Input Given".
   const queries = target.map(
     (p) => `${p.street}; ${[p.city, p.state].filter(Boolean).join(", ")} ${p.zip}`.trim()
   );
-  const traced = await skipTrace({ street_citystatezip: queries, max_results: 1 });
+  const owners = await skipTrace({ street_citystatezip: queries, max_results: 1 });
 
   const byInput = new Map<string, SkipTraceResult>();
-  for (const t of traced) {
+  for (const t of owners) {
     const key = t.inputGiven.replace(/\s+/g, " ").trim().toLowerCase();
     if (key && !byInput.has(key)) byInput.set(key, t);
   }
 
-  const leads: BuyBoxLead[] = target.map((p, i) => {
+  const traced: BuyBoxLead[] = target.map((p, i) => {
     const key = queries[i].replace(/\s+/g, " ").trim().toLowerCase();
     return { ...p, owner: byInput.get(key) ?? null };
   });
+
+  // The point of the list is someone to call. A property whose owner has no
+  // phone number is a dead end, so it never reaches the investor.
+  const leads = traced.filter((l) => (l.owner?.phones.length ?? 0) > 0);
 
   return {
     area: box.area,
     found: all.length,
     scanned,
     capped,
-    traced: leads.filter((l) => l.owner && l.owner.phones.length > 0).length,
+    traced: traced.length,
+    noPhone: traced.length - leads.length,
     leads,
   };
 }

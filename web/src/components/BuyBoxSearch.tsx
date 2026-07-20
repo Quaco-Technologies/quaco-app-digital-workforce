@@ -38,6 +38,39 @@ export const phonesText = (o: SkipTraceResult | null) =>
   o?.phones.map((p) => `${p.number}${p.type ? ` (${p.type})` : ""}`).join("; ") ?? "";
 export const emailsText = (o: SkipTraceResult | null) => o?.emails.join("; ") ?? "";
 
+// Phones and emails get one column each rather than a single crammed cell, so
+// the sheet can be sorted, filtered, and fed to a dialer. Column count follows
+// the widest row in this result set so there are no empty trailing columns.
+export function buildContactColumns(leads: BuyBoxLead[]) {
+  const maxPhones = Math.max(1, ...leads.map((l) => l.owner?.phones.length ?? 0));
+  const maxEmails = Math.max(0, ...leads.map((l) => l.owner?.emails.length ?? 0));
+
+  const headers: string[] = [];
+  for (let i = 0; i < maxPhones; i++) {
+    const name = i === 0 ? "Primary Phone" : i === 1 ? "Secondary Phone" : `Phone ${i + 1}`;
+    headers.push(name, `${name} Type`, `${name} Last Reported`);
+  }
+  for (let i = 0; i < maxEmails; i++) headers.push(`Email ${i + 1}`);
+
+  const cells = (l: BuyBoxLead): string[] => {
+    const out: string[] = [];
+    for (let i = 0; i < maxPhones; i++) {
+      const p = l.owner?.phones[i];
+      // The Primary/Secondary ranking is already carried by the column name, so
+      // this column stays what it says it is: Wireless or Landline.
+      out.push(
+        p?.number ?? "",
+        p?.type ?? "",
+        p?.lastReported.replace(/^Last reported\s*/i, "") ?? ""
+      );
+    }
+    for (let i = 0; i < maxEmails; i++) out.push(l.owner?.emails[i] ?? "");
+    return out;
+  };
+
+  return { headers, cells };
+}
+
 export const inputCls =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400";
 export const csvBtnCls =
@@ -92,6 +125,7 @@ interface BuyBoxData {
   scanned: number;
   capped: boolean;
   traced: number;
+  noPhone: number;
   leads: BuyBoxLead[];
 }
 
@@ -135,7 +169,13 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Buy box search failed.");
       setData(json);
-      if (!json.leads.length) setError("No matching properties found for that buy box.");
+      if (!json.leads.length) {
+        setError(
+          json.traced > 0
+            ? `Traced ${json.traced} owner${json.traced === 1 ? "" : "s"}, but none had a phone number on record. Try a different area or widen the buy box.`
+            : "No matching properties found for that buy box."
+        );
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -145,17 +185,21 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
 
   const exportCsv = () => {
     if (!data) return;
+    const contact = buildContactColumns(data.leads);
     downloadCsv(
       `birdog-buybox-${data.leads.length}-leads.csv`,
       [
         "Address", "City", "State", "Zip", "Price", "Beds", "Baths", "Sqft",
-        "Owner Name", "Owner Age", "Owner Mailing Address", "Phones", "Emails", "Listing", "Photo",
+        "Owner Name", "Owner Age", "Owner Mailing Address",
+        ...contact.headers,
+        "Listing", "Photo",
       ],
       data.leads.map((l) => [
         l.street, l.city, l.state, l.zip, l.price || "", l.beds || "", l.baths || "", l.sqft || "",
         l.owner ? `${l.owner.firstName} ${l.owner.lastName}`.trim() : "",
         l.owner?.age ?? "", l.owner?.address ?? "",
-        phonesText(l.owner), emailsText(l.owner), l.url, l.imgSrc,
+        ...contact.cells(l),
+        l.url, l.imgSrc,
       ])
     );
   };
@@ -225,16 +269,12 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <p className="text-sm text-slate-600">
-              <span className="font-medium text-slate-900">{data.leads.length}</span> properties shown
-              {" · "}
-              <span className="font-medium text-slate-900">{data.traced}</span> with phone numbers
-              {data.found > data.leads.length && (
-                <span className="text-slate-400">
-                  {" · "}
-                  {data.found}
-                  {data.capped ? "+" : ""} matched your buy box
-                </span>
-              )}
+              <span className="font-medium text-slate-900">{data.leads.length}</span> owners you can
+              call
+              <span className="text-slate-400">
+                {data.noPhone > 0 && ` · ${data.noPhone} traced with no phone, hidden`}
+                {` · ${data.found}${data.capped ? "+" : ""} matched your buy box`}
+              </span>
             </p>
             <button onClick={exportCsv} className={csvBtnCls}>
               <Download size={15} />
@@ -289,7 +329,35 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
                         {l.owner.age && <span className="text-xs font-normal text-slate-400">Age {l.owner.age}</span>}
                       </p>
                       <div className="grid md:grid-cols-2 gap-x-6 gap-y-1 mt-2">
-                        <ContactList icon={Phone} items={l.owner.phones.map((p) => `${p.number}${p.type ? ` · ${p.type}` : ""}`)} empty="No phones" />
+                        <ul className="space-y-1">
+                          {l.owner.phones.map((p, j) => (
+                            <li key={j} className="text-sm text-slate-700 flex items-center gap-2 flex-wrap">
+                              <Phone size={13} className="text-slate-400 shrink-0" />
+                              <a href={`tel:${p.number.replace(/[^\d+]/g, "")}`} className="font-medium hover:underline">
+                                {p.number}
+                              </a>
+                              {p.label && (
+                                <span
+                                  className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                                    p.label === "Primary"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : p.label === "Secondary"
+                                        ? "bg-sky-100 text-sky-700"
+                                        : "bg-slate-100 text-slate-500"
+                                  }`}
+                                >
+                                  {p.label}
+                                </span>
+                              )}
+                              <span className="text-xs text-slate-400">
+                                {p.type}
+                                {/\d{4}/.test(p.lastReported)
+                                  ? ` · ${p.lastReported.replace(/^Last reported\s*/i, "")}`
+                                  : ""}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                         <ContactList icon={Mail} items={l.owner.emails} empty="No emails" />
                       </div>
                     </div>
