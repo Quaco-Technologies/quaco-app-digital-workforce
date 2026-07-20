@@ -155,10 +155,14 @@ export function normalizeSkipRow(row: Record<string, unknown>): SkipTraceResult 
 async function runActorSync(
   actor: string,
   input: unknown,
-  timeoutSecs = 240
+  timeoutSecs = 240,
+  maxItems?: number
 ): Promise<Record<string, unknown>[]> {
   const token = requireToken();
-  const url = `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${token}&timeout=${timeoutSecs}`;
+  // These actors bill per row returned, and maxItems is enforced by the Apify
+  // platform — rows beyond it are never produced, so they are never charged.
+  const cap = maxItems ? `&maxItems=${maxItems}` : "";
+  const url = `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${token}&timeout=${timeoutSecs}${cap}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -253,10 +257,16 @@ function localityFilter(area: string): (p: Property) => boolean {
   return () => true;
 }
 
-// Zillow's own search pagination stops around 800 listings, so a dense metro
-// returns a truncated slice rather than every listing in the area. We surface
-// that instead of implying the number is the whole market.
-const SCRAPE_CEILING = 800;
+// The scraper bills per listing returned ($0.002 each) and would hand back ~820
+// rows for a dense metro — $1.64 — when a 50-lead run only ever reads the first
+// ~80 that survive the buy box. Capping the scrape is the single biggest cost
+// lever in the pipeline.
+//
+// 300 keeps a wide margin: a city search retains roughly half its rows through
+// the buy box filters, so 300 scanned still yields far more matches than the
+// ~80 needed for 50 traced leads. Sorting is newest-first, so the cap keeps the
+// freshest listings rather than an arbitrary slice.
+const SCRAPE_MAX_ITEMS = 300;
 
 export interface ScrapeResult {
   props: Property[];
@@ -291,10 +301,12 @@ export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
     "https://www.zillow.com/homes/for_sale/?searchQueryState=" +
     encodeURIComponent(JSON.stringify(sqs));
 
-  const rows = await runActorSync(ZILLOW_ACTOR, {
-    searchUrls: [{ url: searchUrl }],
-    extractionMethod: "PAGINATION",
-  });
+  const rows = await runActorSync(
+    ZILLOW_ACTOR,
+    { searchUrls: [{ url: searchUrl }], extractionMethod: "PAGINATION" },
+    240,
+    SCRAPE_MAX_ITEMS
+  );
 
   let props = rows
     .map(normalizeZillow)
@@ -315,7 +327,7 @@ export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
   if (box.bedsMin != null) props = props.filter((p) => p.beds >= box.bedsMin!);
   if (box.bathsMin != null) props = props.filter((p) => p.baths >= box.bathsMin!);
 
-  return { props, scanned: rows.length, capped: rows.length >= SCRAPE_CEILING };
+  return { props, scanned: rows.length, capped: rows.length >= SCRAPE_MAX_ITEMS };
 }
 
 // Share of traced owners that come back with a phone number, measured on live
