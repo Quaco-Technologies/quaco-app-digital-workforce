@@ -1,0 +1,33 @@
+import BuyBoxSearch from "@/components/BuyBoxSearch";
+
+export const metadata = {
+  title: "Buy Box Search — BirdDog",
+  description:
+    "Enter your buy box and get matching properties with owner names and phone numbers.",
+};
+
+// Public, no sign-in required — this page is meant to be shared as a link.
+// Every run spends Apify credit, so the trace count is capped here and the API
+// route rate limits by IP.
+export default function PublicBuyBoxPage() {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-slate-900">Buy Box Search</h1>
+          <p className="text-sm text-slate-500 mt-1.5">
+            Tell us the area and your criteria. We pull every matching listing, then find the
+            owner&apos;s name and phone number so you can reach out.
+          </p>
+        </div>
+
+        <BuyBoxSearch maxTrace={10} />
+
+        <p className="text-xs text-slate-400 mt-10">
+          Owner data via public records. Verify before contacting and follow all applicable
+          do-not-call rules.
+        </p>
+      </div>
+    </div>
+  );
+}

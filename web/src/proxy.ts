@@ -33,15 +33,20 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
+    pathname === "/" ||
+    pathname.startsWith("/waitlist") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/install") ||
-    pathname.startsWith("/sign")
+    pathname.startsWith("/sign") ||
+    // Shared as a plain link — no sign-in. The route caps its own spend.
+    pathname === "/buybox" ||
+    pathname.startsWith("/api/buybox")
   ) {
     return supabaseResponse;
   }
 
-  if (!user) {
+  if (!user && process.env.NODE_ENV !== "development") {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -49,5 +54,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.svg).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|webmanifest|js|mp4|woff|woff2)).*)"],
 };

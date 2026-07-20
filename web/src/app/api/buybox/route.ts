@@ -1,22 +1,54 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { runBuyBox, type BuyBox } from "@/lib/apify";
-import { createClient } from "@/lib/supabase/server";
 
 // Scraping a metro and then skip tracing the owners runs ~20s and can reach a
 // minute on a dense area. Without this the platform default (10-15s) kills the
 // request and the investor sees a 504 on every search.
 export const maxDuration = 60;
 
+// This endpoint is intentionally open — /buybox is shared as a plain link with
+// no sign-in. That means anyone with the URL can spend Apify credit, so the
+// cost of a single run is capped and repeat callers are throttled.
+const PUBLIC_TRACE_CAP = 10;
+const WINDOW_MS = 60 * 60 * 1000;
+const MAX_RUNS_PER_WINDOW = 5;
+
+// Best-effort throttle. Serverless instances don't share memory, so this slows
+// abuse rather than preventing it; PUBLIC_TRACE_CAP is what actually bounds the
+// spend per call.
+const hits = new Map<string, number[]>();
+
+function rateLimited(ip: string, now: number): boolean {
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
+  if (recent.length >= MAX_RUNS_PER_WINDOW) {
+    hits.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  hits.set(ip, recent);
+
+  // Keep the map from growing without bound across a long-lived instance.
+  if (hits.size > 5000) {
+    for (const [k, v] of hits) {
+      if (!v.some((t) => now - t < WINDOW_MS)) hits.delete(k);
+    }
+  }
+  return false;
+}
+
 // Primary flow: buy box (area + criteria) in → matching properties with owner
 // contact info out. Scrapes the area, then skip traces the owners.
 export async function POST(request: NextRequest) {
-  // Every run spends real Apify credit, so this cannot be an open endpoint.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in to run a buy box search." }, { status: 401 });
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  if (rateLimited(ip, Date.now())) {
+    return NextResponse.json(
+      { error: "That's a lot of searches. Try again in a little while." },
+      { status: 429 }
+    );
   }
 
   let body: BuyBox;
@@ -34,7 +66,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runBuyBox(body);
+    const result = await runBuyBox({
+      ...body,
+      limit: Math.min(body.limit ?? PUBLIC_TRACE_CAP, PUBLIC_TRACE_CAP),
+    });
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
