@@ -236,7 +236,7 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
 
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
           <label className="flex items-center gap-2 text-xs text-slate-500">
-            Trace up to
+            Give me
             <input
               type="number"
               min={1}
@@ -245,7 +245,7 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
               onChange={(e) => setLimit(Math.max(1, Math.min(maxTrace, Number(e.target.value) || 1)))}
               className="w-16 rounded-md border border-slate-200 px-2 py-1 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             />
-            owners
+            owners with phone numbers
           </label>
           <button
             onClick={run}

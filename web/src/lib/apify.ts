@@ -318,6 +318,24 @@ export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
   return { props, scanned: rows.length, capped: rows.length >= SCRAPE_CEILING };
 }
 
+// Share of traced owners that come back with a phone number, measured on live
+// runs. Only the seed for batch one — after that the real rate is used.
+const EXPECTED_HIT_RATE = 0.65;
+
+// Ceiling on traces per requested lead, so a region with unusually poor phone
+// coverage can't quietly spend several times what the investor expected.
+const MAX_TRACE_MULTIPLE = 3;
+
+// Stop starting new batches this far into the request. The route allows 60s;
+// this leaves room for the final batch to land and the response to serialize.
+const TRACE_DEADLINE_MS = 38_000;
+
+// A batch must also *finish* in time, not merely start in time. Traces run
+// sequentially at roughly a third of a second each, so each batch is capped to
+// what fits in the time left before this hard stop.
+const TRACE_HARD_STOP_MS = 50_000;
+const MS_PER_TRACE = 400;
+
 // Primary flow: buy box in → matching properties with owner contact info out.
 export async function runBuyBox(box: BuyBox): Promise<{
   area: string;
@@ -328,42 +346,70 @@ export async function runBuyBox(box: BuyBox): Promise<{
   noPhone: number;
   leads: BuyBoxLead[];
 }> {
+  const startedAt = Date.now();
   const { props: all, scanned, capped } = await scrapeProperties(box);
-  const limit = Math.max(1, Math.min(box.limit ?? 25, 100));
-  const target = all.slice(0, limit);
+  const wanted = Math.max(1, Math.min(box.limit ?? 25, 100));
 
-  if (!target.length) {
+  if (!all.length) {
     return { area: box.area, found: 0, scanned, capped, traced: 0, noPhone: 0, leads: [] };
   }
 
-  // One batched skip-trace call for all addresses; results carry "Input Given".
-  const queries = target.map(
-    (p) => `${p.street}; ${[p.city, p.state].filter(Boolean).join(", ")} ${p.zip}`.trim()
-  );
-  const owners = await skipTrace({ street_citystatezip: queries, max_results: 1 });
+  // Asking for 50 means 50 owners you can actually call, so we trace past that
+  // to cover the misses. Roughly a third of owners have no number on record
+  // (LLCs, trusts, out-of-state holders), so the first batch is sized by the
+  // observed hit rate and later batches re-estimate from what we've seen.
+  const leads: BuyBoxLead[] = [];
+  let cursor = 0;
+  let tracedCount = 0;
 
-  const byInput = new Map<string, SkipTraceResult>();
-  for (const t of owners) {
-    const key = t.inputGiven.replace(/\s+/g, " ").trim().toLowerCase();
-    if (key && !byInput.has(key)) byInput.set(key, t);
+  while (leads.length < wanted && cursor < all.length && tracedCount < wanted * MAX_TRACE_MULTIPLE) {
+    // Leave room to serialize and return inside the 60s function limit rather
+    // than dying at the ceiling with nothing to show.
+    if (Date.now() - startedAt > TRACE_DEADLINE_MS) break;
+
+    const hitRate = tracedCount > 0 ? Math.max(0.2, leads.length / tracedCount) : EXPECTED_HIT_RATE;
+    const affordable = Math.floor(
+      (TRACE_HARD_STOP_MS - (Date.now() - startedAt)) / MS_PER_TRACE
+    );
+    if (affordable < 1) break;
+
+    const batchSize = Math.min(
+      Math.ceil((wanted - leads.length) / hitRate),
+      all.length - cursor,
+      wanted * MAX_TRACE_MULTIPLE - tracedCount,
+      affordable
+    );
+
+    const batch = all.slice(cursor, cursor + batchSize);
+    cursor += batch.length;
+    tracedCount += batch.length;
+
+    const queries = batch.map(
+      (p) => `${p.street}; ${[p.city, p.state].filter(Boolean).join(", ")} ${p.zip}`.trim()
+    );
+    const owners = await skipTrace({ street_citystatezip: queries, max_results: 1 });
+
+    const byInput = new Map<string, SkipTraceResult>();
+    for (const t of owners) {
+      const key = t.inputGiven.replace(/\s+/g, " ").trim().toLowerCase();
+      if (key && !byInput.has(key)) byInput.set(key, t);
+    }
+
+    batch.forEach((p, i) => {
+      const owner = byInput.get(queries[i].replace(/\s+/g, " ").trim().toLowerCase()) ?? null;
+      // A property whose owner has no phone is a dead end — never surfaced.
+      if (owner && owner.phones.length > 0) leads.push({ ...p, owner });
+    });
   }
 
-  const traced: BuyBoxLead[] = target.map((p, i) => {
-    const key = queries[i].replace(/\s+/g, " ").trim().toLowerCase();
-    return { ...p, owner: byInput.get(key) ?? null };
-  });
-
-  // The point of the list is someone to call. A property whose owner has no
-  // phone number is a dead end, so it never reaches the investor.
-  const leads = traced.filter((l) => (l.owner?.phones.length ?? 0) > 0);
-
+  const delivered = leads.slice(0, wanted);
   return {
     area: box.area,
     found: all.length,
     scanned,
     capped,
-    traced: traced.length,
-    noPhone: traced.length - leads.length,
-    leads,
+    traced: tracedCount,
+    noPhone: tracedCount - delivered.length,
+    leads: delivered,
   };
 }
