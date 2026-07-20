@@ -272,7 +272,6 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
               <span className="font-medium text-slate-900">{data.leads.length}</span> owners you can
               call
               <span className="text-slate-400">
-                {data.noPhone > 0 && ` · ${data.noPhone} traced with no phone, hidden`}
                 {` · ${data.found}${data.capped ? "+" : ""} matched your buy box`}
               </span>
             </p>
