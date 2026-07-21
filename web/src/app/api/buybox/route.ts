@@ -4,7 +4,9 @@ import { runBuyBox, type BuyBox } from "@/lib/apify";
 // Scraping a metro and then skip tracing the owners runs ~20s and can reach a
 // minute on a dense area. Without this the platform default (10-15s) kills the
 // request and the investor sees a 504 on every search.
-export const maxDuration = 60;
+// Off-market (Propwire) scrapes are slower than Zillow, so scrape + skip trace
+// can run past a minute. Needs a Pro-plan function limit.
+export const maxDuration = 300;
 
 // This endpoint is intentionally open — /buybox is shared as a plain link with
 // no sign-in. That means anyone with the URL can spend Apify credit, so the

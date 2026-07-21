@@ -83,6 +83,9 @@ export interface Property {
   imgSrc: string;
   // Off-market only: "Pre-foreclosure" / "Auction" / "Bank-owned" / "Foreclosure".
   distress?: string;
+  // Off-market only: estimated equity % and whether the owner lives elsewhere.
+  equity?: number;
+  absentee?: boolean;
 }
 
 export interface BuyBoxLead extends Property {
@@ -338,73 +341,109 @@ export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Off-market (distressed) source — foreclosure / pre-foreclosure / auction /
-// bank-owned. These owners are motivated and not yet on the open market, which
-// is where most wholesale deals come from.
+// Off-market source — PRE-FORECLOSURE via Propwire. These owners are behind on
+// payments but still own the home and aren't on the market: the most motivated
+// sellers, and where wholesale deals come from. (Zillow can't surface these.)
 // ---------------------------------------------------------------------------
-const OFFMARKET_ACTOR = process.env.APIFY_OFFMARKET_ACTOR ?? "crawlerbros~zillow-foreclosure-scraper";
+const OFFMARKET_ACTOR = process.env.APIFY_OFFMARKET_ACTOR ?? "memo23~propwire-leads-scraper";
 
-const DISTRESS_LABEL: Record<string, string> = {
-  foreclosure: "Foreclosure",
-  preForeclosure: "Pre-foreclosure",
-  bankOwned: "Bank-owned",
-  auction: "Auction",
+const US_STATES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia",
+  HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa",
+  KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
+  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
+  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire",
+  NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
+  ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee",
+  TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+  WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
 };
 
-function normalizeOffMarket(row: Record<string, unknown>): Property | null {
-  const address = str(row, "address");
-  if (!address || !/^\d/.test(address)) return null;
+// Build a Propwire search URL for the investor's area. Propwire targets by a
+// location object in the URL — a city needs its state; a ZIP stands alone.
+function propwireUrl(area: string, leadType: string): string | null {
+  const trimmed = area.trim();
+  const zip = trimmed.match(/^(\d{5})$/);
+  let location: Record<string, unknown> | null = null;
+  if (zip) {
+    location = { searchType: "Z", zip: zip[1], title: `${zip[1]}, USA` };
+  } else {
+    const m = trimmed.match(/^(.+),\s*([A-Za-z]{2})$/);
+    if (m) {
+      const city = m[1].trim();
+      const st = m[2].toUpperCase();
+      location = {
+        searchType: "C",
+        city,
+        state: st,
+        title: `${city}, ${st}, USA`,
+        stateName: US_STATES[st] ?? st,
+      };
+    }
+  }
+  if (!location) return null;
+  const filters = { locations: [location], lead_type: [leadType], property_type: ["sfr"] };
+  return "https://propwire.com/search?filters=" + encodeURIComponent(JSON.stringify(filters));
+}
+
+function normalizePropwire(row: Record<string, unknown>): Property | null {
+  const addr = (row.address ?? {}) as Record<string, unknown>;
+  const street = String(addr.address ?? "").trim();
+  if (!street || !/^\d/.test(street)) return null;
   const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
-  // Distressed listings rarely have an asking price; the tax-assessed value (or
-  // Zestimate) is the usable number for a buy box and for display.
-  const price = num(row.price) || num(row.taxAssessedValue) || num(row.zestimate);
-  const distress = DISTRESS_LABEL[str(row, "distressType")] ?? "Distressed";
-  const street = address.split(",")[0].trim();
+  const lead = (row.lead_type ?? {}) as Record<string, boolean>;
+  const mls = (row.mls_details ?? {}) as Record<string, unknown>;
+  const price = num(row.estimated_value);
+  const equity = num(row.estimated_equity_percentage);
   return {
-    address,
+    address: [street, addr.city, addr.state, addr.zip].filter(Boolean).join(", "),
     street,
-    city: str(row, "city"),
-    state: str(row, "state"),
-    zip: str(row, "zipCode"),
+    city: String(addr.city ?? ""),
+    state: String(addr.state ?? ""),
+    zip: String(addr.zip ?? ""),
     price,
-    priceText: price ? `~$${price.toLocaleString()}` : "Price N/A",
-    beds: num(row.beds),
-    baths: num(row.baths),
-    sqft: num(row.sqft),
+    priceText: price ? `~$${price.toLocaleString()} est.` : "Value N/A",
+    beds: num(row.bedrooms),
+    baths: num(row.bathrooms),
+    sqft: num(row.building_area_sf) || num(row.living_area_sf),
     status: "OFF_MARKET",
-    url: str(row, "url"),
-    imgSrc: "",
-    distress,
+    url: "",
+    imgSrc: String(mls.photo_url ?? ""),
+    distress: "Pre-foreclosure",
+    equity: equity || undefined,
+    absentee: lead.absentee_owner || undefined,
   };
 }
 
+// Propwire is slower per item than Zillow (~5 items/sec), so cap lower to keep
+// the scrape well inside the request budget and leave time for skip tracing.
+// 120 pre-foreclosures is plenty to yield 50 with-phone leads at a ~65% rate.
+const OFFMARKET_MAX_ITEMS = 120;
+
 export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
+  const url = propwireUrl(box.area, "preforeclosure");
+  if (!url) {
+    throw new Error('For off-market, enter an area as "City, ST" or a 5-digit ZIP.');
+  }
+
   const rows = await runActorSync(
     OFFMARKET_ACTOR,
-    {
-      search: box.area,
-      distressTypes: ["foreclosure", "preForeclosure", "bankOwned", "auction"],
-      maxItems: SCRAPE_MAX_ITEMS,
-    },
+    { startUrls: [{ url }], maxItems: OFFMARKET_MAX_ITEMS, proxy: { useApifyProxy: true } },
     240,
-    SCRAPE_MAX_ITEMS
+    OFFMARKET_MAX_ITEMS
   );
 
-  let props = rows
-    .map(normalizeOffMarket)
-    .filter((p): p is Property => p !== null);
+  let props = rows.map(normalizePropwire).filter((p): p is Property => p !== null);
 
-  props = props.filter(localityFilter(box.area));
-
-  // Price here is an estimate (assessed / Zestimate). Only filter when the
-  // investor set a bound AND we have a number — never drop a distressed lead
-  // just because its value is unknown.
+  // Value is an estimate; only filter when a bound is set and we have a number.
   if (box.priceMin != null) props = props.filter((p) => !p.price || p.price >= box.priceMin!);
   if (box.priceMax != null) props = props.filter((p) => !p.price || p.price <= box.priceMax!);
   if (box.bedsMin != null) props = props.filter((p) => !p.beds || p.beds >= box.bedsMin!);
   if (box.bathsMin != null) props = props.filter((p) => !p.baths || p.baths >= box.bathsMin!);
 
-  return { props, scanned: rows.length, capped: rows.length >= SCRAPE_MAX_ITEMS };
+  return { props, scanned: rows.length, capped: rows.length >= OFFMARKET_MAX_ITEMS };
 }
 
 // Share of traced owners that come back with a phone number, measured on live
@@ -415,14 +454,12 @@ const EXPECTED_HIT_RATE = 0.65;
 // coverage can't quietly spend several times what the investor expected.
 const MAX_TRACE_MULTIPLE = 3;
 
-// Stop starting new batches this far into the request. The route allows 60s;
-// this leaves room for the final batch to land and the response to serialize.
-const TRACE_DEADLINE_MS = 38_000;
-
-// A batch must also *finish* in time, not merely start in time. Traces run
-// sequentially at roughly a third of a second each, so each batch is capped to
-// what fits in the time left before this hard stop.
-const TRACE_HARD_STOP_MS = 50_000;
+// Total wall-clock budget for the whole request (scrape + trace), kept under
+// the route's maxDuration. Measured from the function start, so a slower scrape
+// (off-market/Propwire) simply leaves a shorter — but still used — trace window,
+// instead of the old fixed deadlines that a slow scrape blew past entirely.
+const TOTAL_BUDGET_MS = 110_000;
+const RESPONSE_MARGIN_MS = 6_000;
 const MS_PER_TRACE = 400;
 
 // Primary flow: buy box in → matching properties with owner contact info out.
@@ -459,12 +496,13 @@ export async function runBuyBox(box: BuyBox): Promise<{
   // The cost cap and the "trace more to hit the target" logic apply to *paid*
   // traces — cache hits are free, so they never count against the ceiling.
   while (leads.length < wanted && cursor < all.length && paid < wanted * MAX_TRACE_MULTIPLE) {
-    // Leave room to serialize and return inside the 60s function limit rather
-    // than dying at the ceiling with nothing to show.
-    if (Date.now() - startedAt > TRACE_DEADLINE_MS) break;
+    // Leave room to serialize and return inside the function limit rather than
+    // dying at the ceiling with nothing to show.
+    const remaining = TOTAL_BUDGET_MS - RESPONSE_MARGIN_MS - (Date.now() - startedAt);
+    if (remaining <= 0) break;
 
     const hitRate = examined > 0 ? Math.max(0.2, leads.length / examined) : EXPECTED_HIT_RATE;
-    const affordable = Math.floor((TRACE_HARD_STOP_MS - (Date.now() - startedAt)) / MS_PER_TRACE);
+    const affordable = Math.floor(remaining / MS_PER_TRACE);
     if (affordable < 1) break;
 
     const batchSize = Math.min(

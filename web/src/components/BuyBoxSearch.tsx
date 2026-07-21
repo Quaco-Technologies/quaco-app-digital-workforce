@@ -291,30 +291,39 @@ export default function BuyBoxSearch({
   return (
     <>
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        {/* Source toggle — off-market (distressed) vs on-market (for sale) */}
-        <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-lg w-fit">
+        {/* Source toggle switch — Listed (on-market) vs Off-Market (distressed) */}
+        <div className="flex items-center gap-3 mb-1.5">
+          <span
+            className={`text-[13px] font-medium transition-colors ${
+              source === "forsale" ? "text-slate-900" : "text-slate-400"
+            }`}
+          >
+            Listed
+          </span>
           <button
             type="button"
-            onClick={() => setSource("offmarket")}
-            className={`px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
-              source === "offmarket" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+            role="switch"
+            aria-checked={source === "offmarket"}
+            onClick={() => setSource(source === "offmarket" ? "forsale" : "offmarket")}
+            className="relative h-6 w-11 rounded-full bg-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                source === "offmarket" ? "translate-x-[22px]" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+          <span
+            className={`text-[13px] font-medium transition-colors ${
+              source === "offmarket" ? "text-slate-900" : "text-slate-400"
             }`}
           >
             Off-Market
-          </button>
-          <button
-            type="button"
-            onClick={() => setSource("forsale")}
-            className={`px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
-              source === "forsale" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            For Sale
-          </button>
+          </span>
         </div>
-        <p className="text-xs text-slate-400 mb-4 -mt-2">
+        <p className="text-xs text-slate-400 mb-4">
           {source === "offmarket"
-            ? "Distressed owners — foreclosure, pre-foreclosure, auction, bank-owned. Not on the open market."
+            ? "Pre-foreclosure owners — behind on payments, not yet on the market. The most motivated sellers."
             : "Active MLS listings currently for sale."}
         </p>
 
@@ -458,13 +467,15 @@ export function BuyBoxResults({
     downloadCsv(
       `birdog-buybox-${data.leads.length}-leads.csv`,
       [
-        "Address", "City", "State", "Zip", "Price", "Beds", "Baths", "Sqft",
+        "Address", "City", "State", "Zip", "Est. Value", "Beds", "Baths", "Sqft",
+        "Distress", "Equity %", "Absentee",
         "Owner Name", "Owner Age", "Owner Mailing Address",
         ...contact.headers,
         "Listing", "Photo",
       ],
       data.leads.map((l) => [
         l.street, l.city, l.state, l.zip, l.price || "", l.beds || "", l.baths || "", l.sqft || "",
+        l.distress ?? "", l.equity ?? "", l.absentee ? "Yes" : "",
         l.owner ? `${l.owner.firstName} ${l.owner.lastName}`.trim() : "",
         l.owner?.age ?? "", l.owner?.address ?? "",
         ...contact.cells(l),
@@ -511,11 +522,18 @@ export function BuyBoxResults({
               )}
               <div className="flex items-start justify-between gap-4 flex-wrap flex-1 min-w-0">
                 <div className="min-w-0">
-                  {l.distress && (
-                    <span className="inline-block mb-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
-                      {l.distress}
-                    </span>
-                  )}
+                  <span className="mb-1 flex flex-wrap items-center gap-1">
+                    {l.distress && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                        {l.distress}
+                      </span>
+                    )}
+                    {l.absentee && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                        Absentee
+                      </span>
+                    )}
+                  </span>
                   <p className="text-base font-semibold text-slate-900">{l.street}</p>
                   <p className="text-sm text-slate-500 mt-0.5">
                     {[l.city, l.state, l.zip].filter(Boolean).join(", ")}
@@ -525,6 +543,7 @@ export function BuyBoxResults({
                     {l.beds ? ` · ${l.beds} bd` : ""}
                     {l.baths ? ` · ${l.baths} ba` : ""}
                     {l.sqft ? ` · ${l.sqft.toLocaleString()} sqft` : ""}
+                    {l.equity ? ` · ${l.equity}% equity` : ""}
                   </p>
                 </div>
                 {l.url && (
