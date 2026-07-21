@@ -17,7 +17,7 @@ export const maxDuration = 300;
 // 50 traces measured 26s on a small area, and a dense metro spends ~20s on the
 // listing scrape before tracing starts, so 50 leaves real headroom under the
 // limit while 100 would not.
-const PUBLIC_TRACE_CAP = 50;
+const PUBLIC_TRACE_CAP = 100;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_RUNS_PER_WINDOW = 5;
 

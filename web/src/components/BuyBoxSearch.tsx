@@ -113,13 +113,6 @@ export const csvBtnCls =
 
 // Preset options so investors pick from a list instead of typing. Values are
 // strings (empty = no limit) to match the form state and the num() parser.
-const POPULAR_MARKETS = [
-  "Atlanta, GA", "Dallas, TX", "Houston, TX", "San Antonio, TX", "Phoenix, AZ",
-  "Tampa, FL", "Jacksonville, FL", "Orlando, FL", "Charlotte, NC", "Memphis, TN",
-  "Nashville, TN", "Birmingham, AL", "Cleveland, OH", "Columbus, OH",
-  "Indianapolis, IN", "Kansas City, MO", "Oklahoma City, OK", "Detroit, MI",
-  "St. Louis, MO", "Las Vegas, NV",
-];
 const PRICE_MIN_OPTS: [string, string][] = [
   ["", "No min"], ["50000", "$50k"], ["100000", "$100k"], ["150000", "$150k"],
   ["200000", "$200k"], ["250000", "$250k"], ["300000", "$300k"], ["400000", "$400k"],
@@ -230,14 +223,11 @@ export default function BuyBoxSearch({
     setLeadTypes((cur) =>
       cur.includes(t) ? (cur.length > 1 ? cur.filter((x) => x !== t) : cur) : [...cur, t]
     );
-  // Area is a dropdown of popular markets; picking "Other" reveals a text box
-  // so any city or ZIP still works.
-  const [customArea, setCustomArea] = useState(false);
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [bedsMin, setBedsMin] = useState("");
   const [bathsMin, setBathsMin] = useState("");
-  const [limit, setLimit] = useState(Math.min(25, maxTrace));
+  const [limit, setLimit] = useState(Math.min(5, maxTrace));
 
   // Lead-count choices, capped to what this context allows.
   const countOpts = [5, 10, 25, 50, 100].filter((n) => n <= maxTrace);
@@ -381,39 +371,16 @@ export default function BuyBoxSearch({
         )}
 
         <label className="block text-xs font-medium text-slate-500 mb-1.5">Area</label>
-        <Dropdown
-          value={customArea ? "__other__" : area}
-          leftIcon={<MapPin size={15} />}
-          onChange={(e) => {
-            if (e.target.value === "__other__") {
-              setCustomArea(true);
-              setArea("");
-            } else {
-              setCustomArea(false);
-              setArea(e.target.value);
-            }
-          }}
-        >
-          <option value="" disabled>
-            Choose a market…
-          </option>
-          {POPULAR_MARKETS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-          <option value="__other__">Other — type a city or ZIP…</option>
-        </Dropdown>
-        {customArea && (
+        <div className="relative">
+          <MapPin size={15} className="absolute left-3 top-2.5 text-slate-400" />
           <input
             value={area}
-            autoFocus
             onChange={(e) => setArea(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
-            placeholder="e.g. Marfa, TX  ·  or a ZIP like 30303"
-            className={`${inputCls} mt-2`}
+            placeholder="Atlanta, GA  ·  or a ZIP like 30303"
+            className={`${inputCls} pl-9`}
           />
-        )}
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Field label="Price min">
@@ -451,7 +418,7 @@ export default function BuyBoxSearch({
               </select>
               <ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
-            <span>owners with phone numbers</span>
+            <span>owners</span>
           </div>
           <button
             onClick={run}
@@ -541,11 +508,7 @@ export function BuyBoxResults({
     <div className="mt-6">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <p className="text-sm text-slate-600">
-          <span className="font-medium text-slate-900">{data.leads.length}</span> owners you can call
-          <span className="text-slate-400">
-            {data.found > 0 && ` · ${data.found}${data.capped ? "+" : ""} matched your buy box`}
-            {(data.cached ?? 0) > 0 && ` · ${data.cached} reused from cache (no charge)`}
-          </span>
+          <span className="font-medium text-slate-900">{data.leads.length}</span> owners
         </p>
         <div className="flex items-center gap-3">
           {headerNote}
