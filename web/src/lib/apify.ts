@@ -99,10 +99,32 @@ export interface BuyBox {
   bedsMin?: number;
   bathsMin?: number;
   limit?: number; // cap how many owners we skip trace (cost control)
-  // "forsale" = on-market Zillow listings (default). "offmarket" = distressed
-  // (foreclosure / pre-foreclosure / auction / bank-owned).
+  // "forsale" = on-market Zillow listings (default). "offmarket" = a Propwire
+  // distress list chosen by leadType below.
   source?: "forsale" | "offmarket";
+  // Off-market lead type — a Propwire lead_type key, e.g. "preforeclosure",
+  // "absentee_owner", "high_equity", "vacant_home". Defaults to preforeclosure.
+  leadType?: string;
 }
+
+// Propwire lead_type key → the badge shown on the card. Also the menu the UI
+// offers; keep in sync with OFF_MARKET_TYPES in BuyBoxSearch.
+export const LEAD_TYPE_LABEL: Record<string, string> = {
+  preforeclosure: "Pre-foreclosure",
+  absentee_owner: "Absentee owner",
+  high_equity: "High equity",
+  vacant_home: "Vacant",
+  tired_landlord: "Tired landlord",
+  out_of_state_owner: "Out-of-state owner",
+  free_and_clear: "Free & clear",
+  tax_dodgers: "Tax delinquent",
+  divorce: "Divorce",
+  bankruptcy: "Bankruptcy",
+  code_violation: "Code violation",
+  zombie_property: "Zombie property",
+  auction: "Auction",
+  bank_owned: "Bank-owned",
+};
 
 function requireToken(): string {
   if (!TOKEN) throw new Error("APIFY_TOKEN is not configured on the server.");
@@ -411,7 +433,7 @@ function normalizePropwire(row: Record<string, unknown>): Property | null {
     status: "OFF_MARKET",
     url: "",
     imgSrc: String(mls.photo_url ?? ""),
-    distress: "Pre-foreclosure",
+    // distress badge is set by the caller from the chosen lead type.
     equity: equity || undefined,
     absentee: lead.absentee_owner || undefined,
   };
@@ -423,7 +445,8 @@ function normalizePropwire(row: Record<string, unknown>): Property | null {
 const OFFMARKET_MAX_ITEMS = 120;
 
 export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
-  const url = propwireUrl(box.area, "preforeclosure");
+  const leadType = box.leadType && LEAD_TYPE_LABEL[box.leadType] ? box.leadType : "preforeclosure";
+  const url = propwireUrl(box.area, leadType);
   if (!url) {
     throw new Error('For off-market, enter an area as "City, ST" or a 5-digit ZIP.');
   }
@@ -435,7 +458,11 @@ export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
     OFFMARKET_MAX_ITEMS
   );
 
-  let props = rows.map(normalizePropwire).filter((p): p is Property => p !== null);
+  const label = LEAD_TYPE_LABEL[leadType];
+  let props = rows
+    .map(normalizePropwire)
+    .filter((p): p is Property => p !== null)
+    .map((p) => ({ ...p, distress: label }));
 
   // Value is an estimate; only filter when a bound is set and we have a number.
   if (box.priceMin != null) props = props.filter((p) => !p.price || p.price >= box.priceMin!);

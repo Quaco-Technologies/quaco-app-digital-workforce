@@ -136,6 +136,23 @@ const BEDS_OPTS: [string, string][] = [
 const BATHS_OPTS: [string, string][] = [
   ["", "Any"], ["1", "1+"], ["2", "2+"], ["3", "3+"], ["4", "4+"],
 ];
+// Off-market lead types (Propwire). Keep in sync with LEAD_TYPE_LABEL in apify.ts.
+const OFF_MARKET_TYPES: [string, string][] = [
+  ["preforeclosure", "Pre-foreclosure"],
+  ["absentee_owner", "Absentee owner"],
+  ["high_equity", "High equity"],
+  ["vacant_home", "Vacant"],
+  ["tired_landlord", "Tired landlord"],
+  ["out_of_state_owner", "Out-of-state owner"],
+  ["free_and_clear", "Free & clear"],
+  ["tax_dodgers", "Tax delinquent"],
+  ["divorce", "Divorce"],
+  ["bankruptcy", "Bankruptcy"],
+  ["code_violation", "Code violation"],
+  ["zombie_property", "Zombie property"],
+  ["auction", "Auction"],
+  ["bank_owned", "Bank-owned"],
+];
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -205,6 +222,7 @@ export default function BuyBoxSearch({
   canSave?: boolean;
 }) {
   const [source, setSource] = useState<"forsale" | "offmarket">("offmarket");
+  const [leadType, setLeadType] = useState("preforeclosure");
   const [area, setArea] = useState("");
   // Area is a dropdown of popular markets; picking "Other" reveals a text box
   // so any city or ZIP still works.
@@ -232,7 +250,7 @@ export default function BuyBoxSearch({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           area: result.area,
-          params: { source, priceMin, priceMax, bedsMin, bathsMin, limit },
+          params: { source, leadType, priceMin, priceMax, bedsMin, bathsMin, limit },
           found: result.found,
           traced: result.traced,
           leads: result.leads,
@@ -262,6 +280,7 @@ export default function BuyBoxSearch({
         body: JSON.stringify({
           area,
           source,
+          leadType: source === "offmarket" ? leadType : undefined,
           priceMin: num(priceMin),
           priceMax: num(priceMax),
           bedsMin: num(bedsMin),
@@ -292,40 +311,55 @@ export default function BuyBoxSearch({
     <>
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         {/* Source toggle switch — Listed (on-market) vs Off-Market (distressed) */}
-        <div className="flex items-center gap-3 mb-1.5">
-          <span
-            className={`text-[13px] font-medium transition-colors ${
-              source === "forsale" ? "text-slate-900" : "text-slate-400"
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <button
+            type="button"
+            onClick={() => setSource("forsale")}
+            className={`text-sm font-semibold transition-colors ${
+              source === "forsale" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
             }`}
           >
             Listed
-          </span>
+          </button>
           <button
             type="button"
             role="switch"
             aria-checked={source === "offmarket"}
             onClick={() => setSource(source === "offmarket" ? "forsale" : "offmarket")}
-            className="relative h-6 w-11 rounded-full bg-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className={`relative h-7 w-[52px] rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
+              source === "offmarket" ? "bg-rose-500" : "bg-slate-300"
+            }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                source === "offmarket" ? "translate-x-[22px]" : "translate-x-0.5"
+              className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                source === "offmarket" ? "translate-x-[26px]" : "translate-x-1"
               }`}
             />
           </button>
-          <span
-            className={`text-[13px] font-medium transition-colors ${
-              source === "offmarket" ? "text-slate-900" : "text-slate-400"
+          <button
+            type="button"
+            onClick={() => setSource("offmarket")}
+            className={`text-sm font-semibold transition-colors ${
+              source === "offmarket" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
             }`}
           >
             Off-Market
-          </span>
+          </button>
         </div>
-        <p className="text-xs text-slate-400 mb-4">
-          {source === "offmarket"
-            ? "Pre-foreclosure owners — behind on payments, not yet on the market. The most motivated sellers."
-            : "Active MLS listings currently for sale."}
-        </p>
+
+        {source === "offmarket" && (
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Lead type</label>
+            <Dropdown value={leadType} onChange={(e) => setLeadType(e.target.value)}>
+              {OFF_MARKET_TYPES.map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </Dropdown>
+            <p className="text-xs text-slate-400 mt-1.5">
+              Distressed & motivated owners, not on the open market. Pick the signal you want.
+            </p>
+          </div>
+        )}
 
         <label className="block text-xs font-medium text-slate-500 mb-1.5">Area</label>
         <Dropdown
@@ -528,7 +562,7 @@ export function BuyBoxResults({
                         {l.distress}
                       </span>
                     )}
-                    {l.absentee && (
+                    {l.absentee && l.distress !== "Absentee owner" && (
                       <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                         Absentee
                       </span>
