@@ -13,6 +13,7 @@ import {
   Home,
   ExternalLink,
   Check,
+  ChevronDown,
 } from "lucide-react";
 import type { SkipTraceResult, BuyBoxLead } from "@/lib/apify";
 
@@ -74,8 +75,39 @@ export function buildContactColumns(leads: BuyBoxLead[]) {
 
 export const inputCls =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400";
+// appearance-none strips the clunky native arrow; we draw our own chevron.
 export const selectCls =
-  "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 cursor-pointer";
+  "w-full appearance-none rounded-lg border border-slate-200 pl-3 pr-9 py-2 text-sm text-slate-900 bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 cursor-pointer transition-colors";
+
+// A native select styled to match the text inputs, with our own chevron.
+export function Dropdown({
+  value,
+  onChange,
+  children,
+  leftIcon,
+}: {
+  value: string | number;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  children: React.ReactNode;
+  leftIcon?: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      {leftIcon && (
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          {leftIcon}
+        </span>
+      )}
+      <select value={value} onChange={onChange} className={`${selectCls} ${leftIcon ? "pl-9" : ""}`}>
+        {children}
+      </select>
+      <ChevronDown
+        size={15}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+    </div>
+  );
+}
 export const csvBtnCls =
   "flex items-center gap-2 text-sm font-medium text-slate-700 border border-slate-200 bg-white px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors";
 
@@ -258,32 +290,29 @@ export default function BuyBoxSearch({
     <>
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         <label className="block text-xs font-medium text-slate-500 mb-1.5">Area</label>
-        <div className="relative">
-          <MapPin size={15} className="absolute left-3 top-2.5 text-slate-400 z-10" />
-          <select
-            value={customArea ? "__other__" : area}
-            onChange={(e) => {
-              if (e.target.value === "__other__") {
-                setCustomArea(true);
-                setArea("");
-              } else {
-                setCustomArea(false);
-                setArea(e.target.value);
-              }
-            }}
-            className={`${selectCls} pl-9`}
-          >
-            <option value="" disabled>
-              Choose a market…
+        <Dropdown
+          value={customArea ? "__other__" : area}
+          leftIcon={<MapPin size={15} />}
+          onChange={(e) => {
+            if (e.target.value === "__other__") {
+              setCustomArea(true);
+              setArea("");
+            } else {
+              setCustomArea(false);
+              setArea(e.target.value);
+            }
+          }}
+        >
+          <option value="" disabled>
+            Choose a market…
+          </option>
+          {POPULAR_MARKETS.map((m) => (
+            <option key={m} value={m}>
+              {m}
             </option>
-            {POPULAR_MARKETS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-            <option value="__other__">Other — type a city or ZIP…</option>
-          </select>
-        </div>
+          ))}
+          <option value="__other__">Other — type a city or ZIP…</option>
+        </Dropdown>
         {customArea && (
           <input
             value={area}
@@ -297,39 +326,42 @@ export default function BuyBoxSearch({
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Field label="Price min">
-            <select value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className={selectCls}>
+            <Dropdown value={priceMin} onChange={(e) => setPriceMin(e.target.value)}>
               {PRICE_MIN_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
-            </select>
+            </Dropdown>
           </Field>
           <Field label="Price max">
-            <select value={priceMax} onChange={(e) => setPriceMax(e.target.value)} className={selectCls}>
+            <Dropdown value={priceMax} onChange={(e) => setPriceMax(e.target.value)}>
               {PRICE_MAX_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
-            </select>
+            </Dropdown>
           </Field>
           <Field label="Beds min">
-            <select value={bedsMin} onChange={(e) => setBedsMin(e.target.value)} className={selectCls}>
+            <Dropdown value={bedsMin} onChange={(e) => setBedsMin(e.target.value)}>
               {BEDS_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
-            </select>
+            </Dropdown>
           </Field>
           <Field label="Baths min">
-            <select value={bathsMin} onChange={(e) => setBathsMin(e.target.value)} className={selectCls}>
+            <Dropdown value={bathsMin} onChange={(e) => setBathsMin(e.target.value)}>
               {BATHS_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
-            </select>
+            </Dropdown>
           </Field>
         </div>
 
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-500">
-            Give me
-            <select
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="rounded-md border border-slate-200 px-2 py-1 text-slate-900 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-            >
-              {countOpts.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            owners with phone numbers
-          </label>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>Give me</span>
+            <div className="relative">
+              <select
+                value={limit}
+                onChange={(e) => setLimit(Number(e.target.value))}
+                className="appearance-none rounded-md border border-slate-200 pl-2.5 pr-7 py-1.5 text-slate-900 bg-white cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-colors"
+              >
+                {countOpts.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
+            <span>owners with phone numbers</span>
+          </div>
           <button
             onClick={run}
             disabled={loading}
