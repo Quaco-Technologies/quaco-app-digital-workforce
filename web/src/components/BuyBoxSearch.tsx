@@ -311,12 +311,12 @@ export default function BuyBoxSearch({
     <>
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         {/* Source toggle switch — Listed (on-market) vs Off-Market (distressed) */}
-        <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex items-center justify-center gap-5 mb-5">
           <button
             type="button"
             onClick={() => setSource("forsale")}
-            className={`text-sm font-semibold transition-colors ${
-              source === "forsale" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
+            className={`text-[15px] transition-colors ${
+              source === "forsale" ? "font-bold text-slate-900" : "font-medium text-slate-400 hover:text-slate-600"
             }`}
           >
             Listed
@@ -326,21 +326,21 @@ export default function BuyBoxSearch({
             role="switch"
             aria-checked={source === "offmarket"}
             onClick={() => setSource(source === "offmarket" ? "forsale" : "offmarket")}
-            className={`relative h-7 w-[52px] rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
+            className={`relative h-8 w-16 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-400/40 ${
               source === "offmarket" ? "bg-rose-500" : "bg-slate-300"
             }`}
           >
             <span
-              className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                source === "offmarket" ? "translate-x-[26px]" : "translate-x-1"
+              className={`absolute top-1 left-0 h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200 ease-out ${
+                source === "offmarket" ? "translate-x-9" : "translate-x-1"
               }`}
             />
           </button>
           <button
             type="button"
             onClick={() => setSource("offmarket")}
-            className={`text-sm font-semibold transition-colors ${
-              source === "offmarket" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
+            className={`text-[15px] transition-colors ${
+              source === "offmarket" ? "font-bold text-slate-900" : "font-medium text-slate-400 hover:text-slate-600"
             }`}
           >
             Off-Market
