@@ -12,12 +12,12 @@ export const metadata = {
 export default function PublicBuyBoxPage() {
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Brand header — white mark on black, same as the app */}
-      <header className="bg-black border-b border-white/10">
+      {/* Brand header — white bar with the dark mark, same as the app */}
+      <header className="bg-white/90 backdrop-blur border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center">
           <a href="/" className="flex items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/birdog-logo-white.png" alt="BirdDog" className="h-11 w-auto object-contain" />
+            <img src="/birdog-logo-dark.png" alt="BirdDog" className="h-10 w-auto object-contain" />
           </a>
         </div>
       </header>
