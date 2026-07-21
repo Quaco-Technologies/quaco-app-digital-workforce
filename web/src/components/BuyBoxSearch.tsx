@@ -74,8 +74,36 @@ export function buildContactColumns(leads: BuyBoxLead[]) {
 
 export const inputCls =
   "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400";
+export const selectCls =
+  "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 cursor-pointer";
 export const csvBtnCls =
   "flex items-center gap-2 text-sm font-medium text-slate-700 border border-slate-200 bg-white px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors";
+
+// Preset options so investors pick from a list instead of typing. Values are
+// strings (empty = no limit) to match the form state and the num() parser.
+const POPULAR_MARKETS = [
+  "Atlanta, GA", "Dallas, TX", "Houston, TX", "San Antonio, TX", "Phoenix, AZ",
+  "Tampa, FL", "Jacksonville, FL", "Orlando, FL", "Charlotte, NC", "Memphis, TN",
+  "Nashville, TN", "Birmingham, AL", "Cleveland, OH", "Columbus, OH",
+  "Indianapolis, IN", "Kansas City, MO", "Oklahoma City, OK", "Detroit, MI",
+  "St. Louis, MO", "Las Vegas, NV",
+];
+const PRICE_MIN_OPTS: [string, string][] = [
+  ["", "No min"], ["50000", "$50k"], ["100000", "$100k"], ["150000", "$150k"],
+  ["200000", "$200k"], ["250000", "$250k"], ["300000", "$300k"], ["400000", "$400k"],
+  ["500000", "$500k"], ["750000", "$750k"],
+];
+const PRICE_MAX_OPTS: [string, string][] = [
+  ["", "No max"], ["100000", "$100k"], ["150000", "$150k"], ["200000", "$200k"],
+  ["250000", "$250k"], ["300000", "$300k"], ["400000", "$400k"], ["500000", "$500k"],
+  ["750000", "$750k"], ["1000000", "$1M"], ["2000000", "$2M+"],
+];
+const BEDS_OPTS: [string, string][] = [
+  ["", "Any"], ["1", "1+"], ["2", "2+"], ["3", "3+"], ["4", "4+"], ["5", "5+"],
+];
+const BATHS_OPTS: [string, string][] = [
+  ["", "Any"], ["1", "1+"], ["2", "2+"], ["3", "3+"], ["4", "4+"],
+];
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -145,11 +173,18 @@ export default function BuyBoxSearch({
   canSave?: boolean;
 }) {
   const [area, setArea] = useState("");
+  // Area is a dropdown of popular markets; picking "Other" reveals a text box
+  // so any city or ZIP still works.
+  const [customArea, setCustomArea] = useState(false);
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [bedsMin, setBedsMin] = useState("");
   const [bathsMin, setBathsMin] = useState("");
   const [limit, setLimit] = useState(Math.min(25, maxTrace));
+
+  // Lead-count choices, capped to what this context allows.
+  const countOpts = [5, 10, 25, 50, 100].filter((n) => n <= maxTrace);
+  if (!countOpts.includes(maxTrace)) countOpts.push(maxTrace);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BuyBoxData | null>(null);
@@ -224,42 +259,75 @@ export default function BuyBoxSearch({
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
         <label className="block text-xs font-medium text-slate-500 mb-1.5">Area</label>
         <div className="relative">
-          <MapPin size={15} className="absolute left-3 top-2.5 text-slate-400" />
+          <MapPin size={15} className="absolute left-3 top-2.5 text-slate-400 z-10" />
+          <select
+            value={customArea ? "__other__" : area}
+            onChange={(e) => {
+              if (e.target.value === "__other__") {
+                setCustomArea(true);
+                setArea("");
+              } else {
+                setCustomArea(false);
+                setArea(e.target.value);
+              }
+            }}
+            className={`${selectCls} pl-9`}
+          >
+            <option value="" disabled>
+              Choose a market…
+            </option>
+            {POPULAR_MARKETS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+            <option value="__other__">Other — type a city or ZIP…</option>
+          </select>
+        </div>
+        {customArea && (
           <input
             value={area}
+            autoFocus
             onChange={(e) => setArea(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && run()}
-            placeholder="Atlanta, GA  ·  or a ZIP like 30303"
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+            placeholder="e.g. Marfa, TX  ·  or a ZIP like 30303"
+            className={`${inputCls} mt-2`}
           />
-        </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Field label="Price min">
-            <input type="number" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} placeholder="50000" className={inputCls} />
+            <select value={priceMin} onChange={(e) => setPriceMin(e.target.value)} className={selectCls}>
+              {PRICE_MIN_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
+            </select>
           </Field>
           <Field label="Price max">
-            <input type="number" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} placeholder="400000" className={inputCls} />
+            <select value={priceMax} onChange={(e) => setPriceMax(e.target.value)} className={selectCls}>
+              {PRICE_MAX_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
+            </select>
           </Field>
           <Field label="Beds min">
-            <input type="number" value={bedsMin} onChange={(e) => setBedsMin(e.target.value)} placeholder="3" className={inputCls} />
+            <select value={bedsMin} onChange={(e) => setBedsMin(e.target.value)} className={selectCls}>
+              {BEDS_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
+            </select>
           </Field>
           <Field label="Baths min">
-            <input type="number" value={bathsMin} onChange={(e) => setBathsMin(e.target.value)} placeholder="2" className={inputCls} />
+            <select value={bathsMin} onChange={(e) => setBathsMin(e.target.value)} className={selectCls}>
+              {BATHS_OPTS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
+            </select>
           </Field>
         </div>
 
         <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
           <label className="flex items-center gap-2 text-xs text-slate-500">
             Give me
-            <input
-              type="number"
-              min={1}
-              max={maxTrace}
+            <select
               value={limit}
-              onChange={(e) => setLimit(Math.max(1, Math.min(maxTrace, Number(e.target.value) || 1)))}
-              className="w-16 rounded-md border border-slate-200 px-2 py-1 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-            />
+              onChange={(e) => setLimit(Number(e.target.value))}
+              className="rounded-md border border-slate-200 px-2 py-1 text-slate-900 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            >
+              {countOpts.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
             owners with phone numbers
           </label>
           <button
