@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Zap } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { usernameToEmail } from "@/lib/authUsername";
 
 export default function LoginPage() {
@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const inputClass =
-    "w-full px-3.5 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors";
+    "w-full px-4 py-3 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-400/60 focus:ring-2 focus:ring-emerald-400/20 transition";
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,30 +28,31 @@ export default function LoginPage() {
       password,
     });
     if (error) {
-      // Supabase says "Invalid login credentials" — keep it plain for a
-      // username/password form.
       setError("Wrong username or password.");
       setLoading(false);
       return;
     }
-    // Land on the buy box tool — that's the whole product.
     router.push("/skiptrace");
     router.refresh();
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center gap-2.5 mb-10">
-          <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
-            <Zap size={18} className="text-white" />
-          </div>
-          <span className="text-white font-semibold text-lg tracking-tight">Birddogs</span>
-        </div>
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+      {/* soft brand glow */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[42rem] rounded-full bg-emerald-500/10 blur-3xl" />
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
-          <h1 className="text-xl font-bold text-white mb-1">Welcome back</h1>
-          <p className="text-sm text-zinc-400 mb-6">Sign in to your investor dashboard</p>
+      <div className="w-full max-w-sm relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/birdog-logo-white.png"
+          alt="BirdDog"
+          className="h-20 w-auto object-contain mx-auto mb-2"
+        />
+        <p className="text-center text-zinc-500 text-sm mb-8">Find the owner. Make the call.</p>
+
+        <div className="bg-zinc-950/80 border border-white/10 rounded-2xl p-8 shadow-2xl">
+          <h1 className="text-xl font-semibold text-white mb-1">Welcome back</h1>
+          <p className="text-sm text-zinc-400 mb-6">Sign in to your investor account</p>
 
           <form onSubmit={handleSignIn} className="space-y-3">
             <input
@@ -76,7 +77,7 @@ export default function LoginPage() {
             />
 
             {error && (
-              <p className="text-xs px-3 py-2 rounded-lg bg-red-950 text-red-400 border border-red-900">
+              <p className="text-xs px-3 py-2 rounded-lg bg-red-950/60 text-red-400 border border-red-900/60">
                 {error}
               </p>
             )}
@@ -84,13 +85,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-black font-semibold py-3 rounded-xl transition-colors text-sm"
             >
+              {loading && <Loader2 size={15} className="animate-spin" />}
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
-          <p className="mt-6 pt-5 border-t border-zinc-800 text-center text-xs text-zinc-500">
+          <p className="mt-6 pt-5 border-t border-white/10 text-center text-xs text-zinc-600">
             Accounts are created by your admin.
           </p>
         </div>
