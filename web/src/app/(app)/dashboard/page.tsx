@@ -267,8 +267,16 @@ export default function MissionControlPage() {
       <div className="mb-6">
         <div className="flex items-end justify-between gap-3 mb-4">
           <div>
-            <h1 className="text-[26px] font-semibold text-slate-900 tracking-tight leading-tight">
-              {phase === "idle" ? "Welcome back" : phase === "stages" ? "Pipeline running" : agreedPrice ? "Deal agreed" : "Negotiating"}
+            <h1 className="text-[28px] font-medium text-slate-900 tracking-[-0.02em] leading-tight">
+              {phase === "idle" ? (
+                <>Welcome <span className="font-serif italic font-normal">back</span></>
+              ) : phase === "stages" ? (
+                <>Pipeline <span className="font-serif italic font-normal">running</span></>
+              ) : agreedPrice ? (
+                <>Deal <span className="font-serif italic font-normal">agreed</span></>
+              ) : (
+                <><span className="font-serif italic font-normal">Negotiating</span></>
+              )}
             </h1>
             <p className="text-[13px] text-slate-500 mt-0.5 flex items-center gap-2">
               {phase === "idle"

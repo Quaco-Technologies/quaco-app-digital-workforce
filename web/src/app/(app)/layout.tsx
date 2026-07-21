@@ -12,12 +12,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session) {
+  if (!session && process.env.NODE_ENV !== "development") {
     redirect("/login");
   }
 
   // Check if onboarding is complete; redirect new users to onboarding flow
   try {
+    if (!session) throw new Error("no session");
     const res = await fetch(`${API_BASE}/onboarding/profile`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
       cache: "no-store",

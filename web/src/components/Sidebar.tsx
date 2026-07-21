@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Folder, Play, Settings, Zap, LogOut, Inbox,
-  LayoutGrid, BarChart3, FileSignature, Repeat, Sparkles,
+  LayoutDashboard, Folder, Play, Settings, LogOut, Inbox,
+  LayoutGrid, BarChart3, FileSignature, Repeat, Sparkles, UserSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +29,12 @@ const sections: NavSection[] = [
   {
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    heading: "Tools",
+    items: [
+      { href: "/skiptrace", label: "Skip Trace", icon: UserSearch },
     ],
   },
   {
@@ -96,13 +102,12 @@ export function Sidebar() {
 
   return (
     <aside className="w-60 shrink-0 bg-[#faf9f6] border-r border-slate-200/60 min-h-screen flex flex-col">
-      <div className="px-4 py-4 flex items-center gap-2.5 border-b border-slate-200/60">
-        <div className="relative w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/30">
-          <Zap size={13} className="relative text-white" fill="currentColor" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-slate-900 font-semibold tracking-tight text-[14px] leading-none">Birddogs</span>
-        </div>
+      <div className="px-4 py-4 flex items-center border-b border-slate-200/60">
+        <img
+          src="/birdog-logo-dark.png"
+          alt="Birdog"
+          className="h-10 w-auto object-contain"
+        />
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">

@@ -12,7 +12,6 @@ import {
   Target,
   Home,
   ExternalLink,
-  Bookmark,
   Check,
 } from "lucide-react";
 import type { SkipTraceResult, BuyBoxLead } from "@/lib/apify";
@@ -122,7 +121,7 @@ export function ContactList({
 /* Buy box search — form, results list, CSV export                    */
 /* ================================================================== */
 
-interface BuyBoxData {
+export interface BuyBoxData {
   area?: string;
   found: number;
   scanned: number;
@@ -154,22 +153,26 @@ export default function BuyBoxSearch({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BuyBoxData | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  // For signed-in investors every search is saved to history automatically.
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
-  const saveAll = async () => {
-    if (!data?.leads.length) return;
+  const autoSave = async (result: BuyBoxData) => {
     setSaveState("saving");
     try {
-      const res = await fetch("/api/leads", {
+      const res = await fetch("/api/searches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ area: data.area, leads: data.leads }),
+        body: JSON.stringify({
+          area: result.area,
+          params: { priceMin, priceMax, bedsMin, bathsMin, limit },
+          found: result.found,
+          traced: result.traced,
+          leads: result.leads,
+        }),
       });
-      if (!res.ok) throw new Error();
-      setSaveState("saved");
+      setSaveState(res.ok ? "saved" : "error");
     } catch {
-      setSaveState("idle");
-      setError("Couldn't save leads. Try again.");
+      setSaveState("error");
     }
   };
 
@@ -206,33 +209,14 @@ export default function BuyBoxSearch({
             ? `Traced ${json.traced} owner${json.traced === 1 ? "" : "s"}, but none had a phone number on record. Try a different area or widen the buy box.`
             : "No matching properties found for that buy box."
         );
+      } else if (canSave) {
+        void autoSave(json); // fire-and-forget; the results are already shown
       }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const exportCsv = () => {
-    if (!data) return;
-    const contact = buildContactColumns(data.leads);
-    downloadCsv(
-      `birdog-buybox-${data.leads.length}-leads.csv`,
-      [
-        "Address", "City", "State", "Zip", "Price", "Beds", "Baths", "Sqft",
-        "Owner Name", "Owner Age", "Owner Mailing Address",
-        ...contact.headers,
-        "Listing", "Photo",
-      ],
-      data.leads.map((l) => [
-        l.street, l.city, l.state, l.zip, l.price || "", l.beds || "", l.baths || "", l.sqft || "",
-        l.owner ? `${l.owner.firstName} ${l.owner.lastName}`.trim() : "",
-        l.owner?.age ?? "", l.owner?.address ?? "",
-        ...contact.cells(l),
-        l.url, l.imgSrc,
-      ])
-    );
   };
 
   return (
@@ -297,132 +281,174 @@ export default function BuyBoxSearch({
       {error && <Banner>{error}</Banner>}
 
       {data && data.leads.length > 0 && (
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <p className="text-sm text-slate-600">
-              <span className="font-medium text-slate-900">{data.leads.length}</span> owners you can
-              call
-              <span className="text-slate-400">
-                {` · ${data.found}${data.capped ? "+" : ""} matched your buy box`}
-                {(data.cached ?? 0) > 0 && ` · ${data.cached} reused from cache (no charge)`}
+        <BuyBoxResults
+          data={data}
+          headerNote={
+            canSave ? (
+              <span className="flex items-center gap-1 text-xs">
+                {saveState === "saving" && (
+                  <>
+                    <Loader2 size={12} className="animate-spin text-slate-400" />
+                    <span className="text-slate-400">Saving to history…</span>
+                  </>
+                )}
+                {saveState === "saved" && (
+                  <>
+                    <Check size={12} className="text-emerald-600" />
+                    <span className="text-emerald-600">Saved to history</span>
+                  </>
+                )}
+                {saveState === "error" && (
+                  <span className="text-amber-600">Not saved to history</span>
+                )}
               </span>
-            </p>
-            <div className="flex items-center gap-2">
-              {canSave && (
-                <button
-                  onClick={saveAll}
-                  disabled={saveState !== "idle"}
-                  className={csvBtnCls}
-                >
-                  {saveState === "saving" ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : saveState === "saved" ? (
-                    <Check size={15} className="text-emerald-600" />
-                  ) : (
-                    <Bookmark size={15} />
-                  )}
-                  {saveState === "saved"
-                    ? "Saved to my leads"
-                    : saveState === "saving"
-                      ? "Saving…"
-                      : "Save to my leads"}
-                </button>
-              )}
-              <button onClick={exportCsv} className={csvBtnCls}>
-                <Download size={15} />
-                Download CSV
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {data.leads.map((l, i) => (
-              <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                <div className="flex items-start gap-4">
-                  {l.imgSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={l.imgSrc}
-                      alt={l.street}
-                      loading="lazy"
-                      className="w-28 h-24 sm:w-36 sm:h-28 object-cover rounded-lg bg-slate-100 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-28 h-24 sm:w-36 sm:h-28 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                      <Home size={20} className="text-slate-300" />
-                    </div>
-                  )}
-                  <div className="flex items-start justify-between gap-4 flex-wrap flex-1 min-w-0">
-                    <div className="min-w-0">
-                      <p className="text-base font-semibold text-slate-900">{l.street}</p>
-                      <p className="text-sm text-slate-500 mt-0.5">
-                        {[l.city, l.state, l.zip].filter(Boolean).join(", ")}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {l.priceText && <span className="font-medium text-slate-700">{l.priceText}</span>}
-                        {l.beds ? ` · ${l.beds} bd` : ""}
-                        {l.baths ? ` · ${l.baths} ba` : ""}
-                        {l.sqft ? ` · ${l.sqft.toLocaleString()} sqft` : ""}
-                      </p>
-                    </div>
-                    {l.url && (
-                      <a href={l.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline flex items-center gap-1 shrink-0">
-                        Listing <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-slate-100">
-                  {l.owner && (l.owner.phones.length || l.owner.emails.length) ? (
-                    <div>
-                      <p className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
-                        <User size={13} className="text-slate-400" />
-                        {`${l.owner.firstName} ${l.owner.lastName}`.trim() || "Owner"}
-                        {l.owner.age && <span className="text-xs font-normal text-slate-400">Age {l.owner.age}</span>}
-                      </p>
-                      <div className="grid md:grid-cols-2 gap-x-6 gap-y-1 mt-2">
-                        <ul className="space-y-1">
-                          {l.owner.phones.map((p, j) => (
-                            <li key={j} className="text-sm text-slate-700 flex items-center gap-2 flex-wrap">
-                              <Phone size={13} className="text-slate-400 shrink-0" />
-                              <a href={`tel:${p.number.replace(/[^\d+]/g, "")}`} className="font-medium hover:underline">
-                                {p.number}
-                              </a>
-                              {p.label && (
-                                <span
-                                  className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
-                                    p.label === "Primary"
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : p.label === "Secondary"
-                                        ? "bg-sky-100 text-sky-700"
-                                        : "bg-slate-100 text-slate-500"
-                                  }`}
-                                >
-                                  {p.label}
-                                </span>
-                              )}
-                              <span className="text-xs text-slate-400">
-                                {p.type}
-                                {/\d{4}/.test(p.lastReported)
-                                  ? ` · ${p.lastReported.replace(/^Last reported\s*/i, "")}`
-                                  : ""}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                        <ContactList icon={Mail} items={l.owner.emails} empty="No emails" />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-400">No owner contact info found.</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+            ) : null
+          }
+        />
       )}
     </>
+  );
+}
+
+/* ================================================================== */
+/* Results — shared by live search and saved history                  */
+/* ================================================================== */
+
+// Renders the counts line, CSV button, and property cards for a result set.
+// Live search and reopened history both use this, so they look and export
+// identically by construction.
+export function BuyBoxResults({
+  data,
+  headerNote,
+}: {
+  data: BuyBoxData;
+  headerNote?: React.ReactNode;
+}) {
+  const exportCsv = () => {
+    const contact = buildContactColumns(data.leads);
+    downloadCsv(
+      `birdog-buybox-${data.leads.length}-leads.csv`,
+      [
+        "Address", "City", "State", "Zip", "Price", "Beds", "Baths", "Sqft",
+        "Owner Name", "Owner Age", "Owner Mailing Address",
+        ...contact.headers,
+        "Listing", "Photo",
+      ],
+      data.leads.map((l) => [
+        l.street, l.city, l.state, l.zip, l.price || "", l.beds || "", l.baths || "", l.sqft || "",
+        l.owner ? `${l.owner.firstName} ${l.owner.lastName}`.trim() : "",
+        l.owner?.age ?? "", l.owner?.address ?? "",
+        ...contact.cells(l),
+        l.url, l.imgSrc,
+      ])
+    );
+  };
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <p className="text-sm text-slate-600">
+          <span className="font-medium text-slate-900">{data.leads.length}</span> owners you can call
+          <span className="text-slate-400">
+            {data.found > 0 && ` · ${data.found}${data.capped ? "+" : ""} matched your buy box`}
+            {(data.cached ?? 0) > 0 && ` · ${data.cached} reused from cache (no charge)`}
+          </span>
+        </p>
+        <div className="flex items-center gap-3">
+          {headerNote}
+          <button onClick={exportCsv} className={csvBtnCls}>
+            <Download size={15} />
+            Download CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {data.leads.map((l, i) => (
+          <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="flex items-start gap-4">
+              {l.imgSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={l.imgSrc}
+                  alt={l.street}
+                  loading="lazy"
+                  className="w-28 h-24 sm:w-36 sm:h-28 object-cover rounded-lg bg-slate-100 shrink-0"
+                />
+              ) : (
+                <div className="w-28 h-24 sm:w-36 sm:h-28 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                  <Home size={20} className="text-slate-300" />
+                </div>
+              )}
+              <div className="flex items-start justify-between gap-4 flex-wrap flex-1 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-slate-900">{l.street}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {[l.city, l.state, l.zip].filter(Boolean).join(", ")}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {l.priceText && <span className="font-medium text-slate-700">{l.priceText}</span>}
+                    {l.beds ? ` · ${l.beds} bd` : ""}
+                    {l.baths ? ` · ${l.baths} ba` : ""}
+                    {l.sqft ? ` · ${l.sqft.toLocaleString()} sqft` : ""}
+                  </p>
+                </div>
+                {l.url && (
+                  <a href={l.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline flex items-center gap-1 shrink-0">
+                    Listing <ExternalLink size={12} />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              {l.owner && (l.owner.phones.length || l.owner.emails.length) ? (
+                <div>
+                  <p className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                    <User size={13} className="text-slate-400" />
+                    {`${l.owner.firstName} ${l.owner.lastName}`.trim() || "Owner"}
+                    {l.owner.age && <span className="text-xs font-normal text-slate-400">Age {l.owner.age}</span>}
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-x-6 gap-y-1 mt-2">
+                    <ul className="space-y-1">
+                      {l.owner.phones.map((p, j) => (
+                        <li key={j} className="text-sm text-slate-700 flex items-center gap-2 flex-wrap">
+                          <Phone size={13} className="text-slate-400 shrink-0" />
+                          <a href={`tel:${p.number.replace(/[^\d+]/g, "")}`} className="font-medium hover:underline">
+                            {p.number}
+                          </a>
+                          {p.label && (
+                            <span
+                              className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                                p.label === "Primary"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : p.label === "Secondary"
+                                    ? "bg-sky-100 text-sky-700"
+                                    : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {p.label}
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-400">
+                            {p.type}
+                            {/\d{4}/.test(p.lastReported)
+                              ? ` · ${p.lastReported.replace(/^Last reported\s*/i, "")}`
+                              : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <ContactList icon={Mail} items={l.owner.emails} empty="No emails" />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400">No owner contact info found.</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

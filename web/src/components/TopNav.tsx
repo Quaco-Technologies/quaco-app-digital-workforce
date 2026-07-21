@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Search, Bell, Settings as SettingsIcon, Zap, LogOut } from "lucide-react";
+// Zap kept — used in user menu "Install app" item below
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -45,11 +46,12 @@ export function TopNav() {
     <header className="sticky top-0 z-30 bg-[#ebeae5]/85 backdrop-blur-xl border-b border-slate-200/40">
       <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center gap-6">
         {/* Brand */}
-        <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
-          <div className="relative w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/30">
-            <Zap size={13} className="text-white" fill="currentColor" />
-          </div>
-          <span className="text-slate-900 font-semibold tracking-tight text-[14px]">Birddogs</span>
+        <Link href="/dashboard" className="flex items-center shrink-0">
+          <img
+            src="/birdog-logo-dark.png"
+            alt="Birdog"
+            className="h-9 w-auto object-contain"
+          />
         </Link>
 
         {/* Nav */}

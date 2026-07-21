@@ -33,6 +33,10 @@ body {
 
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
+.font-serif {
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+}
+
 /* Force a real emoji font, never let Inter try to render emoji as text
  * (which produces a thin tofu / vertical-line glyph on some systems). */
 .emoji-glyph {
@@ -240,4 +244,187 @@ body {
     0 4px 12px rgba(59, 91, 219, 0.35),
     0 16px 36px -8px rgba(59, 91, 219, 0.45),
     0 0 0 4px rgba(59, 91, 219, 0.10);
+}
+
+/* ─── Liquid glass (Neuralyn template) ──────────────────── */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%,
+    rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+    rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ─── Neuralyn-style landing page tokens & utilities ────── */
+.landing-dark {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --muted-foreground: 0 0% 65%;
+  --card: 0 0% 5%;
+  --border: 0 0% 20%;
+  --hero-subtitle: 210 17% 95%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+.landing-dark .bg-foreground { background-color: hsl(var(--foreground)); }
+.landing-dark .text-foreground { color: hsl(var(--foreground)); }
+.landing-dark .bg-background { background-color: hsl(var(--background)); }
+.landing-dark .text-background { color: hsl(var(--background)); }
+.landing-dark .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+.landing-dark .border-foreground { border-color: hsl(var(--foreground)); }
+.landing-dark .hero-subtitle { color: hsl(var(--hero-subtitle)); }
+.landing-dark .font-serif {
+  font-family: var(--font-instrument-serif), ui-serif, Georgia, serif;
+}
+
+/* Soft radial glow behind hero text */
+.hero-glow {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  width: 1100px;
+  height: 700px;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(99, 102, 241, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 30% 50%, rgba(56, 189, 248, 0.10) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 60% at 70% 50%, rgba(168, 85, 247, 0.10) 0%, transparent 65%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Aurora orbs slowly drifting */
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(-10%, 0) scale(1); }
+  50%      { transform: translate(8%, 4%) scale(1.08); }
+}
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(6%, 2%) scale(1); }
+  50%      { transform: translate(-8%, -4%) scale(1.1); }
+}
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 0;
+}
+.orb-1 {
+  width: 520px; height: 520px;
+  left: -120px; top: -100px;
+  background: radial-gradient(circle, rgba(99,102,241,0.45), transparent 60%);
+  animation: orb-drift-1 18s ease-in-out infinite;
+}
+.orb-2 {
+  width: 600px; height: 600px;
+  right: -160px; top: 10%;
+  background: radial-gradient(circle, rgba(168,85,247,0.30), transparent 60%);
+  animation: orb-drift-2 22s ease-in-out infinite;
+}
+
+/* Fine starfield grain */
+.hero-grain {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.4) 0.5px, transparent 1px),
+    radial-gradient(circle at 70% 60%, rgba(255,255,255,0.3) 0.5px, transparent 1px),
+    radial-gradient(circle at 40% 80%, rgba(255,255,255,0.35) 0.5px, transparent 1px),
+    radial-gradient(circle at 85% 20%, rgba(255,255,255,0.4) 0.5px, transparent 1px),
+    radial-gradient(circle at 10% 70%, rgba(255,255,255,0.3) 0.5px, transparent 1px);
+  background-size: 200px 200px, 250px 250px, 180px 180px, 220px 220px, 240px 240px;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* CTA subtle glow ring */
+.cta-glow {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 4px 20px rgba(255, 255, 255, 0.10),
+    0 0 60px rgba(255, 255, 255, 0.18);
+}
+.cta-glow:hover {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 8px 28px rgba(255, 255, 255, 0.18),
+    0 0 80px rgba(255, 255, 255, 0.28);
+}
+
+/* Live pulsing dot */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.85); }
+}
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+/* Map ping ring */
+@keyframes map-ping {
+  0%   { transform: scale(0.4); opacity: 0.9; }
+  80%  { transform: scale(2.8); opacity: 0; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+.map-ping { animation: map-ping 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite; transform-origin: center; }
+
+/* Marquee scroll */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee 32s linear infinite; }
+
+/* Scanline sweep on dashboard */
+@keyframes scanline {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+.scanline {
+  position: absolute;
+  left: 0; right: 0;
+  height: 60%;
+  background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 55%, transparent 100%);
+  pointer-events: none;
+  animation: scanline 7s linear infinite;
+  mix-blend-mode: screen;
+}
+
+/* Animated gradient border for distinctive cards */
+@keyframes border-spin {
+  from { --angle: 0deg; }
+  to   { --angle: 360deg; }
+}
+@property --angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.glow-border {
+  position: relative;
+  background: linear-gradient(#0a0a0c, #050507) padding-box,
+              conic-gradient(from var(--angle, 0deg), rgba(99,102,241,0.5), rgba(168,85,247,0.5), rgba(56,189,248,0.5), rgba(99,102,241,0.5)) border-box;
+  border: 1px solid transparent;
+  animation: border-spin 8s linear infinite;
 }

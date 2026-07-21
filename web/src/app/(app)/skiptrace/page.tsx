@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search,
   Loader2,
@@ -13,9 +13,14 @@ import {
   Target,
   Home,
   ExternalLink,
+  Clock,
+  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import type { SkipTraceResult } from "@/lib/apify";
 import BuyBoxSearch, {
+  BuyBoxResults,
+  type BuyBoxData,
   downloadCsv,
   phonesText,
   emailsText,
@@ -28,7 +33,7 @@ import BuyBoxSearch, {
 /* Page                                                               */
 /* ================================================================== */
 
-type Tab = "buybox" | "lookup";
+type Tab = "buybox" | "lookup" | "history";
 
 export default function SkipTracePage() {
   const [tab, setTab] = useState<Tab>("buybox");
@@ -62,9 +67,131 @@ export default function SkipTracePage() {
           <Search size={14} strokeWidth={1.75} />
           Single Lookup
         </button>
+        <button
+          onClick={() => setTab("history")}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
+            tab === "history" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+          }`}
+        >
+          <Clock size={14} strokeWidth={1.75} />
+          History
+        </button>
       </div>
 
-      {tab === "buybox" ? <BuyBoxSearch canSave /> : <LookupTab />}
+      {tab === "buybox" && <BuyBoxSearch canSave />}
+      {tab === "lookup" && <LookupTab />}
+      {tab === "history" && <HistoryTab />}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/* History — past searches, reopened into the same results view       */
+/* ================================================================== */
+
+interface SearchSummary {
+  id: string;
+  area: string | null;
+  found: number;
+  traced: number;
+  lead_count: number;
+  created_at: string;
+}
+
+function HistoryTab() {
+  const [searches, setSearches] = useState<SearchSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<BuyBoxData | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/searches");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Couldn't load history.");
+        setSearches(json.searches);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    })();
+  }, []);
+
+  const open = async (id: string) => {
+    setOpening(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/searches/${id}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't open that search.");
+      setSelected(json);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setOpening(null);
+    }
+  };
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+
+  // Viewing one past search — same cards, same CSV as a live run.
+  if (selected) {
+    return (
+      <div>
+        <button
+          onClick={() => setSelected(null)}
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 mb-1 transition-colors"
+        >
+          <ArrowLeft size={13} /> Back to history
+        </button>
+        <p className="text-sm text-slate-500">
+          {selected.area}
+          {selected.area ? " · " : ""}saved search
+        </p>
+        <BuyBoxResults data={selected} />
+      </div>
+    );
+  }
+
+  if (error) return <Banner>{error}</Banner>;
+  if (!searches) return <p className="text-sm text-slate-400">Loading your searches…</p>;
+  if (!searches.length)
+    return (
+      <div className="text-center py-12">
+        <Clock size={28} className="mx-auto text-slate-300 mb-3" />
+        <p className="text-sm text-slate-500">No saved searches yet.</p>
+        <p className="text-xs text-slate-400 mt-1">Run a buy box search and it&apos;ll show up here.</p>
+      </div>
+    );
+
+  return (
+    <div className="space-y-2">
+      {searches.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => open(s.id)}
+          disabled={opening === s.id}
+          className="w-full flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm hover:border-slate-300 hover:shadow transition-all text-left"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-900 truncate">
+              {s.area || "Buy box search"}
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {s.lead_count} callable {s.lead_count === 1 ? "lead" : "leads"}
+              {s.found > 0 && ` · ${s.found} matched`} · {fmtDate(s.created_at)}
+            </p>
+          </div>
+          {opening === s.id ? (
+            <Loader2 size={16} className="animate-spin text-slate-400 shrink-0" />
+          ) : (
+            <ChevronRight size={16} className="text-slate-400 shrink-0" />
+          )}
+        </button>
+      ))}
     </div>
   );
 }
