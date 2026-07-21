@@ -41,10 +41,10 @@ export default function SkipTracePage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">Skip Trace</h1>
+        <h1 className="text-xl font-semibold text-slate-900">Find Property Owners</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Enter your buy box and get owner contact info for every matching property — or look up a
-          single address.
+          Enter your buy box and get owner names and phone numbers for every matching property.
+          Every search is saved to your History.
         </p>
       </div>
 

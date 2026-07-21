@@ -34,7 +34,8 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push("/dashboard");
+    // Land on the buy box tool — that's the whole product.
+    router.push("/skiptrace");
     router.refresh();
   };
 
