@@ -81,6 +81,8 @@ export interface Property {
   status: string;
   url: string;
   imgSrc: string;
+  // Off-market only: "Pre-foreclosure" / "Auction" / "Bank-owned" / "Foreclosure".
+  distress?: string;
 }
 
 export interface BuyBoxLead extends Property {
@@ -94,6 +96,9 @@ export interface BuyBox {
   bedsMin?: number;
   bathsMin?: number;
   limit?: number; // cap how many owners we skip trace (cost control)
+  // "forsale" = on-market Zillow listings (default). "offmarket" = distressed
+  // (foreclosure / pre-foreclosure / auction / bank-owned).
+  source?: "forsale" | "offmarket";
 }
 
 function requireToken(): string {
@@ -332,6 +337,76 @@ export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
   return { props, scanned: rows.length, capped: rows.length >= SCRAPE_MAX_ITEMS };
 }
 
+// ---------------------------------------------------------------------------
+// Off-market (distressed) source — foreclosure / pre-foreclosure / auction /
+// bank-owned. These owners are motivated and not yet on the open market, which
+// is where most wholesale deals come from.
+// ---------------------------------------------------------------------------
+const OFFMARKET_ACTOR = process.env.APIFY_OFFMARKET_ACTOR ?? "crawlerbros~zillow-foreclosure-scraper";
+
+const DISTRESS_LABEL: Record<string, string> = {
+  foreclosure: "Foreclosure",
+  preForeclosure: "Pre-foreclosure",
+  bankOwned: "Bank-owned",
+  auction: "Auction",
+};
+
+function normalizeOffMarket(row: Record<string, unknown>): Property | null {
+  const address = str(row, "address");
+  if (!address || !/^\d/.test(address)) return null;
+  const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
+  // Distressed listings rarely have an asking price; the tax-assessed value (or
+  // Zestimate) is the usable number for a buy box and for display.
+  const price = num(row.price) || num(row.taxAssessedValue) || num(row.zestimate);
+  const distress = DISTRESS_LABEL[str(row, "distressType")] ?? "Distressed";
+  const street = address.split(",")[0].trim();
+  return {
+    address,
+    street,
+    city: str(row, "city"),
+    state: str(row, "state"),
+    zip: str(row, "zipCode"),
+    price,
+    priceText: price ? `~$${price.toLocaleString()}` : "Price N/A",
+    beds: num(row.beds),
+    baths: num(row.baths),
+    sqft: num(row.sqft),
+    status: "OFF_MARKET",
+    url: str(row, "url"),
+    imgSrc: "",
+    distress,
+  };
+}
+
+export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
+  const rows = await runActorSync(
+    OFFMARKET_ACTOR,
+    {
+      search: box.area,
+      distressTypes: ["foreclosure", "preForeclosure", "bankOwned", "auction"],
+      maxItems: SCRAPE_MAX_ITEMS,
+    },
+    240,
+    SCRAPE_MAX_ITEMS
+  );
+
+  let props = rows
+    .map(normalizeOffMarket)
+    .filter((p): p is Property => p !== null);
+
+  props = props.filter(localityFilter(box.area));
+
+  // Price here is an estimate (assessed / Zestimate). Only filter when the
+  // investor set a bound AND we have a number — never drop a distressed lead
+  // just because its value is unknown.
+  if (box.priceMin != null) props = props.filter((p) => !p.price || p.price >= box.priceMin!);
+  if (box.priceMax != null) props = props.filter((p) => !p.price || p.price <= box.priceMax!);
+  if (box.bedsMin != null) props = props.filter((p) => !p.beds || p.beds >= box.bedsMin!);
+  if (box.bathsMin != null) props = props.filter((p) => !p.baths || p.baths >= box.bathsMin!);
+
+  return { props, scanned: rows.length, capped: rows.length >= SCRAPE_MAX_ITEMS };
+}
+
 // Share of traced owners that come back with a phone number, measured on live
 // runs. Only the seed for batch one — after that the real rate is used.
 const EXPECTED_HIT_RATE = 0.65;
@@ -363,7 +438,8 @@ export async function runBuyBox(box: BuyBox): Promise<{
   leads: BuyBoxLead[];
 }> {
   const startedAt = Date.now();
-  const { props: all, scanned, capped } = await scrapeProperties(box);
+  const { props: all, scanned, capped } =
+    box.source === "offmarket" ? await scrapeOffMarket(box) : await scrapeProperties(box);
   const wanted = Math.max(1, Math.min(box.limit ?? 25, 100));
 
   if (!all.length) {

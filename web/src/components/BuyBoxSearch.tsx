@@ -204,6 +204,7 @@ export default function BuyBoxSearch({
   // Only shown to signed-in investors — the public link has no account to save to.
   canSave?: boolean;
 }) {
+  const [source, setSource] = useState<"forsale" | "offmarket">("offmarket");
   const [area, setArea] = useState("");
   // Area is a dropdown of popular markets; picking "Other" reveals a text box
   // so any city or ZIP still works.
@@ -231,7 +232,7 @@ export default function BuyBoxSearch({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           area: result.area,
-          params: { priceMin, priceMax, bedsMin, bathsMin, limit },
+          params: { source, priceMin, priceMax, bedsMin, bathsMin, limit },
           found: result.found,
           traced: result.traced,
           leads: result.leads,
@@ -260,6 +261,7 @@ export default function BuyBoxSearch({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           area,
+          source,
           priceMin: num(priceMin),
           priceMax: num(priceMax),
           bedsMin: num(bedsMin),
@@ -289,6 +291,33 @@ export default function BuyBoxSearch({
   return (
     <>
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        {/* Source toggle — off-market (distressed) vs on-market (for sale) */}
+        <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-lg w-fit">
+          <button
+            type="button"
+            onClick={() => setSource("offmarket")}
+            className={`px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
+              source === "offmarket" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            Off-Market
+          </button>
+          <button
+            type="button"
+            onClick={() => setSource("forsale")}
+            className={`px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
+              source === "forsale" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            For Sale
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mb-4 -mt-2">
+          {source === "offmarket"
+            ? "Distressed owners — foreclosure, pre-foreclosure, auction, bank-owned. Not on the open market."
+            : "Active MLS listings currently for sale."}
+        </p>
+
         <label className="block text-xs font-medium text-slate-500 mb-1.5">Area</label>
         <Dropdown
           value={customArea ? "__other__" : area}
@@ -482,6 +511,11 @@ export function BuyBoxResults({
               )}
               <div className="flex items-start justify-between gap-4 flex-wrap flex-1 min-w-0">
                 <div className="min-w-0">
+                  {l.distress && (
+                    <span className="inline-block mb-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                      {l.distress}
+                    </span>
+                  )}
                   <p className="text-base font-semibold text-slate-900">{l.street}</p>
                   <p className="text-sm text-slate-500 mt-0.5">
                     {[l.city, l.state, l.zip].filter(Boolean).join(", ")}
