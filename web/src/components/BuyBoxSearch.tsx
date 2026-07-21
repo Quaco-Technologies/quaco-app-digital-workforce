@@ -222,8 +222,14 @@ export default function BuyBoxSearch({
   canSave?: boolean;
 }) {
   const [source, setSource] = useState<"forsale" | "offmarket">("offmarket");
-  const [leadType, setLeadType] = useState("preforeclosure");
+  const [leadTypes, setLeadTypes] = useState<string[]>(["preforeclosure"]);
   const [area, setArea] = useState("");
+
+  // Toggle a lead type in/out of the stack; always keep at least one selected.
+  const toggleLeadType = (t: string) =>
+    setLeadTypes((cur) =>
+      cur.includes(t) ? (cur.length > 1 ? cur.filter((x) => x !== t) : cur) : [...cur, t]
+    );
   // Area is a dropdown of popular markets; picking "Other" reveals a text box
   // so any city or ZIP still works.
   const [customArea, setCustomArea] = useState(false);
@@ -250,7 +256,7 @@ export default function BuyBoxSearch({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           area: result.area,
-          params: { source, leadType, priceMin, priceMax, bedsMin, bathsMin, limit },
+          params: { source, leadTypes, priceMin, priceMax, bedsMin, bathsMin, limit },
           found: result.found,
           traced: result.traced,
           leads: result.leads,
@@ -280,7 +286,7 @@ export default function BuyBoxSearch({
         body: JSON.stringify({
           area,
           source,
-          leadType: source === "offmarket" ? leadType : undefined,
+          leadTypes: source === "offmarket" ? leadTypes : undefined,
           priceMin: num(priceMin),
           priceMax: num(priceMax),
           bedsMin: num(bedsMin),
@@ -349,15 +355,28 @@ export default function BuyBoxSearch({
 
         {source === "offmarket" && (
           <div className="mb-4">
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Lead type</label>
-            <Dropdown value={leadType} onChange={(e) => setLeadType(e.target.value)}>
-              {OFF_MARKET_TYPES.map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </Dropdown>
-            <p className="text-xs text-slate-400 mt-1.5">
-              Distressed & motivated owners, not on the open market. Pick the signal you want.
-            </p>
+            <label className="block text-xs font-medium text-slate-500 mb-2">
+              Lead types <span className="text-slate-400 font-normal">· stack to narrow (must match all)</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {OFF_MARKET_TYPES.map(([v, l]) => {
+                const on = leadTypes.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => toggleLeadType(v)}
+                    className={`text-[13px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                      on
+                        ? "bg-rose-500 border-rose-500 text-white"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 

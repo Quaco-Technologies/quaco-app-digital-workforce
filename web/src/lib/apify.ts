@@ -102,9 +102,10 @@ export interface BuyBox {
   // "forsale" = on-market Zillow listings (default). "offmarket" = a Propwire
   // distress list chosen by leadType below.
   source?: "forsale" | "offmarket";
-  // Off-market lead type — a Propwire lead_type key, e.g. "preforeclosure",
-  // "absentee_owner", "high_equity", "vacant_home". Defaults to preforeclosure.
-  leadType?: string;
+  // Off-market lead types — Propwire lead_type keys, e.g. ["preforeclosure"] or
+  // ["absentee_owner","high_equity"]. Multiple STACK (AND): a property must match
+  // all of them. Defaults to ["preforeclosure"].
+  leadTypes?: string[];
 }
 
 // Propwire lead_type key → the badge shown on the card. Also the menu the UI
@@ -385,7 +386,7 @@ const US_STATES: Record<string, string> = {
 
 // Build a Propwire search URL for the investor's area. Propwire targets by a
 // location object in the URL — a city needs its state; a ZIP stands alone.
-function propwireUrl(area: string, leadType: string): string | null {
+function propwireUrl(area: string, leadTypes: string[]): string | null {
   const trimmed = area.trim();
   const zip = trimmed.match(/^(\d{5})$/);
   let location: Record<string, unknown> | null = null;
@@ -406,7 +407,7 @@ function propwireUrl(area: string, leadType: string): string | null {
     }
   }
   if (!location) return null;
-  const filters = { locations: [location], lead_type: [leadType], property_type: ["sfr"] };
+  const filters = { locations: [location], lead_type: leadTypes, property_type: ["sfr"] };
   return "https://propwire.com/search?filters=" + encodeURIComponent(JSON.stringify(filters));
 }
 
@@ -445,8 +446,9 @@ function normalizePropwire(row: Record<string, unknown>): Property | null {
 const OFFMARKET_MAX_ITEMS = 120;
 
 export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
-  const leadType = box.leadType && LEAD_TYPE_LABEL[box.leadType] ? box.leadType : "preforeclosure";
-  const url = propwireUrl(box.area, leadType);
+  const leadTypes = (box.leadTypes ?? []).filter((t) => LEAD_TYPE_LABEL[t]);
+  if (!leadTypes.length) leadTypes.push("preforeclosure");
+  const url = propwireUrl(box.area, leadTypes);
   if (!url) {
     throw new Error('For off-market, enter an area as "City, ST" or a 5-digit ZIP.');
   }
@@ -458,7 +460,8 @@ export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
     OFFMARKET_MAX_ITEMS
   );
 
-  const label = LEAD_TYPE_LABEL[leadType];
+  // With stacking every result matches all types; the first is the headline badge.
+  const label = leadTypes.map((t) => LEAD_TYPE_LABEL[t]).join(" · ");
   let props = rows
     .map(normalizePropwire)
     .filter((p): p is Property => p !== null)
