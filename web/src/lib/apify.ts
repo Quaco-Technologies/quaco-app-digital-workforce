@@ -1,5 +1,7 @@
 // Server-only Apify helpers. The APIFY_TOKEN is read here and never sent to the
 // browser — only route handlers (server code) import this module.
+import { getCachedTraces, putCachedTraces, traceKey } from "@/lib/traceCache";
+
 const TOKEN = process.env.APIFY_TOKEN;
 const SKIPTRACE_ACTOR = process.env.APIFY_SKIPTRACE_ACTOR ?? "one-api~skip-trace";
 const ZILLOW_ACTOR = process.env.APIFY_ZILLOW_ACTOR ?? "maxcopell~zillow-scraper";
@@ -355,6 +357,8 @@ export async function runBuyBox(box: BuyBox): Promise<{
   scanned: number;
   capped: boolean;
   traced: number;
+  paid: number;
+  cached: number;
   noPhone: number;
   leads: BuyBoxLead[];
 }> {
@@ -363,7 +367,7 @@ export async function runBuyBox(box: BuyBox): Promise<{
   const wanted = Math.max(1, Math.min(box.limit ?? 25, 100));
 
   if (!all.length) {
-    return { area: box.area, found: 0, scanned, capped, traced: 0, noPhone: 0, leads: [] };
+    return { area: box.area, found: 0, scanned, capped, traced: 0, paid: 0, cached: 0, noPhone: 0, leads: [] };
   }
 
   // Asking for 50 means 50 owners you can actually call, so we trace past that
@@ -372,43 +376,70 @@ export async function runBuyBox(box: BuyBox): Promise<{
   // observed hit rate and later batches re-estimate from what we've seen.
   const leads: BuyBoxLead[] = [];
   let cursor = 0;
-  let tracedCount = 0;
+  let examined = 0; // owners looked at (cache hits + fresh)
+  let paid = 0; // owners actually traced via Apify (what we spent on)
+  let cachedHits = 0; // owners served from the cache (what we saved)
 
-  while (leads.length < wanted && cursor < all.length && tracedCount < wanted * MAX_TRACE_MULTIPLE) {
+  // The cost cap and the "trace more to hit the target" logic apply to *paid*
+  // traces — cache hits are free, so they never count against the ceiling.
+  while (leads.length < wanted && cursor < all.length && paid < wanted * MAX_TRACE_MULTIPLE) {
     // Leave room to serialize and return inside the 60s function limit rather
     // than dying at the ceiling with nothing to show.
     if (Date.now() - startedAt > TRACE_DEADLINE_MS) break;
 
-    const hitRate = tracedCount > 0 ? Math.max(0.2, leads.length / tracedCount) : EXPECTED_HIT_RATE;
-    const affordable = Math.floor(
-      (TRACE_HARD_STOP_MS - (Date.now() - startedAt)) / MS_PER_TRACE
-    );
+    const hitRate = examined > 0 ? Math.max(0.2, leads.length / examined) : EXPECTED_HIT_RATE;
+    const affordable = Math.floor((TRACE_HARD_STOP_MS - (Date.now() - startedAt)) / MS_PER_TRACE);
     if (affordable < 1) break;
 
     const batchSize = Math.min(
       Math.ceil((wanted - leads.length) / hitRate),
       all.length - cursor,
-      wanted * MAX_TRACE_MULTIPLE - tracedCount,
+      // Never let a batch's worst case (all misses) exceed the paid ceiling…
+      wanted * MAX_TRACE_MULTIPLE - paid,
+      // …or overrun the time budget.
       affordable
     );
 
     const batch = all.slice(cursor, cursor + batchSize);
     cursor += batch.length;
-    tracedCount += batch.length;
+    examined += batch.length;
 
     const queries = batch.map(
       (p) => `${p.street}; ${[p.city, p.state].filter(Boolean).join(", ")} ${p.zip}`.trim()
     );
-    const owners = await skipTrace({ street_citystatezip: queries, max_results: 1 });
+    const keys = queries.map(traceKey);
 
-    const byInput = new Map<string, SkipTraceResult>();
-    for (const t of owners) {
-      const key = t.inputGiven.replace(/\s+/g, " ").trim().toLowerCase();
-      if (key && !byInput.has(key)) byInput.set(key, t);
+    // Cache first — one lookup for the whole batch.
+    const cached = await getCachedTraces(keys);
+    cachedHits += keys.filter((k) => cached.has(k)).length;
+
+    // Only the misses cost money.
+    const missIdx = keys.map((k, i) => (cached.has(k) ? -1 : i)).filter((i) => i >= 0);
+    const fresh = new Map<string, SkipTraceResult>();
+    if (missIdx.length) {
+      const owners = await skipTrace({
+        street_citystatezip: missIdx.map((i) => queries[i]),
+        max_results: 1,
+      });
+      const byInput = new Map<string, SkipTraceResult>();
+      for (const t of owners) {
+        const key = traceKey(t.inputGiven);
+        if (key && !byInput.has(key)) byInput.set(key, t);
+      }
+      // Record every miss — including "no owner found" — so we never pay to
+      // look it up again. traceKey(query) is the stable key.
+      const toWrite: { key: string; result: SkipTraceResult }[] = [];
+      for (const i of missIdx) {
+        const result = byInput.get(keys[i]) ?? emptyTrace(queries[i]);
+        fresh.set(keys[i], result);
+        toWrite.push({ key: keys[i], result });
+      }
+      await putCachedTraces(toWrite);
+      paid += missIdx.length;
     }
 
     batch.forEach((p, i) => {
-      const owner = byInput.get(queries[i].replace(/\s+/g, " ").trim().toLowerCase()) ?? null;
+      const owner = cached.get(keys[i]) ?? fresh.get(keys[i]) ?? null;
       // A property whose owner has no phone is a dead end — never surfaced.
       if (owner && owner.phones.length > 0) leads.push({ ...p, owner });
     });
@@ -420,8 +451,27 @@ export async function runBuyBox(box: BuyBox): Promise<{
     found: all.length,
     scanned,
     capped,
-    traced: tracedCount,
-    noPhone: tracedCount - delivered.length,
+    traced: examined,
+    paid,
+    cached: cachedHits,
+    noPhone: examined - delivered.length,
     leads: delivered,
+  };
+}
+
+// A "we looked and found nothing" placeholder, cached so the same dead address
+// isn't re-traced on the next search.
+function emptyTrace(query: string): SkipTraceResult {
+  return {
+    searchOption: "",
+    inputGiven: query,
+    firstName: "",
+    lastName: "",
+    age: "",
+    livesIn: "",
+    address: "",
+    county: "",
+    emails: [],
+    phones: [],
   };
 }

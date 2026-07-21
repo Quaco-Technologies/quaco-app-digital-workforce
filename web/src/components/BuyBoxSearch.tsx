@@ -12,6 +12,8 @@ import {
   Target,
   Home,
   ExternalLink,
+  Bookmark,
+  Check,
 } from "lucide-react";
 import type { SkipTraceResult, BuyBoxLead } from "@/lib/apify";
 
@@ -121,10 +123,13 @@ export function ContactList({
 /* ================================================================== */
 
 interface BuyBoxData {
+  area?: string;
   found: number;
   scanned: number;
   capped: boolean;
   traced: number;
+  paid?: number;
+  cached?: number;
   noPhone: number;
   leads: BuyBoxLead[];
 }
@@ -132,7 +137,14 @@ interface BuyBoxData {
 // maxTrace bounds how many owners a single run will skip trace. The public,
 // no-login page passes a low number because every trace costs real money and
 // anyone with the link can run it.
-export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) {
+export default function BuyBoxSearch({
+  maxTrace = 100,
+  canSave = false,
+}: {
+  maxTrace?: number;
+  // Only shown to signed-in investors — the public link has no account to save to.
+  canSave?: boolean;
+}) {
   const [area, setArea] = useState("");
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
@@ -142,6 +154,24 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BuyBoxData | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+
+  const saveAll = async () => {
+    if (!data?.leads.length) return;
+    setSaveState("saving");
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ area: data.area, leads: data.leads }),
+      });
+      if (!res.ok) throw new Error();
+      setSaveState("saved");
+    } catch {
+      setSaveState("idle");
+      setError("Couldn't save leads. Try again.");
+    }
+  };
 
   const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
 
@@ -153,6 +183,7 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
     setError(null);
     setLoading(true);
     setData(null);
+    setSaveState("idle");
     try {
       const res = await fetch("/api/buybox", {
         method: "POST",
@@ -273,12 +304,35 @@ export default function BuyBoxSearch({ maxTrace = 100 }: { maxTrace?: number }) 
               call
               <span className="text-slate-400">
                 {` · ${data.found}${data.capped ? "+" : ""} matched your buy box`}
+                {(data.cached ?? 0) > 0 && ` · ${data.cached} reused from cache (no charge)`}
               </span>
             </p>
-            <button onClick={exportCsv} className={csvBtnCls}>
-              <Download size={15} />
-              Download CSV
-            </button>
+            <div className="flex items-center gap-2">
+              {canSave && (
+                <button
+                  onClick={saveAll}
+                  disabled={saveState !== "idle"}
+                  className={csvBtnCls}
+                >
+                  {saveState === "saving" ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : saveState === "saved" ? (
+                    <Check size={15} className="text-emerald-600" />
+                  ) : (
+                    <Bookmark size={15} />
+                  )}
+                  {saveState === "saved"
+                    ? "Saved to my leads"
+                    : saveState === "saving"
+                      ? "Saving…"
+                      : "Save to my leads"}
+                </button>
+              )}
+              <button onClick={exportCsv} className={csvBtnCls}>
+                <Download size={15} />
+                Download CSV
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">

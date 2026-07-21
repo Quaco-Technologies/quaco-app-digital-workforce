@@ -64,7 +64,7 @@ export default function SkipTracePage() {
         </button>
       </div>
 
-      {tab === "buybox" ? <BuyBoxSearch /> : <LookupTab />}
+      {tab === "buybox" ? <BuyBoxSearch canSave /> : <LookupTab />}
     </div>
   );
 }
