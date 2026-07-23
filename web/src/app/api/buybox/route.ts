@@ -80,6 +80,13 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    // Don't leak raw actor errors to the UI. A flaky data-provider run gets a
+    // friendly retry message; anything we deliberately threw (e.g. a bad area)
+    // is already user-facing and passes through.
+    const msg = (err as Error).message;
+    const friendly = msg.includes("ACTOR_FAILED")
+      ? "The search service is busy right now. Please try again in a moment."
+      : msg;
+    return NextResponse.json({ error: friendly }, { status: 502 });
   }
 }

@@ -189,23 +189,31 @@ async function runActorSync(
   actor: string,
   input: unknown,
   timeoutSecs = 240,
-  maxItems?: number
+  maxItems?: number,
+  retries = 1
 ): Promise<Record<string, unknown>[]> {
   const token = requireToken();
   // These actors bill per row returned, and maxItems is enforced by the Apify
   // platform — rows beyond it are never produced, so they are never charged.
   const cap = maxItems ? `&maxItems=${maxItems}` : "";
   const url = `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${token}&timeout=${timeoutSecs}${cap}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => res.statusText);
-    throw new Error(`Apify ${actor} returned ${res.status}: ${detail.slice(0, 300)}`);
+
+  // Some actors (Propwire especially) fail intermittently — a failed run comes
+  // back as a 4xx/5xx from the sync endpoint — so retry before giving up rather
+  // than surfacing a one-off flake as an error to the investor.
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (res.ok) return (await res.json()) as Record<string, unknown>[];
+    } catch {
+      // network blip — fall through to retry
+    }
   }
-  return (await res.json()) as Record<string, unknown>[];
+  throw new Error("ACTOR_FAILED");
 }
 
 export interface SkipTraceInput {
@@ -384,6 +392,34 @@ const US_STATES: Record<string, string> = {
   WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
 };
 
+const STATE_ABBR: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATES).map(([ab, name]) => [name.toLowerCase(), ab])
+);
+
+// A bare city ("Dallas") has no state, which Propwire requires. Look it up so
+// the investor doesn't have to type ", TX" — resolves to "Dallas, TX".
+async function resolveOffMarketArea(area: string): Promise<string | null> {
+  const t = area.trim();
+  if (/^\d{5}$/.test(t)) return t; // ZIP
+  if (/^.+,\s*[A-Za-z]{2}$/.test(t)) return t; // already "City, ST"
+
+  try {
+    const url =
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(t)}` +
+      `&format=json&addressdetails=1&countrycodes=us&limit=1`;
+    const res = await fetch(url, { headers: { "User-Agent": "birdog-skiptrace/1.0" } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { address?: Record<string, string> }[];
+    const addr = data[0]?.address;
+    if (!addr) return null;
+    const ab = STATE_ABBR[String(addr.state ?? "").toLowerCase()];
+    const city = addr.city || addr.town || addr.village || addr.county || t;
+    return ab ? `${city}, ${ab}` : null;
+  } catch {
+    return null;
+  }
+}
+
 // Build a Propwire search URL for the investor's area. Propwire targets by a
 // location object in the URL — a city needs its state; a ZIP stands alone.
 function propwireUrl(area: string, leadTypes: string[]): string | null {
@@ -448,16 +484,18 @@ const OFFMARKET_MAX_ITEMS = 120;
 export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
   const leadTypes = (box.leadTypes ?? []).filter((t) => LEAD_TYPE_LABEL[t]);
   if (!leadTypes.length) leadTypes.push("preforeclosure");
-  const url = propwireUrl(box.area, leadTypes);
+  const resolved = await resolveOffMarketArea(box.area);
+  const url = resolved ? propwireUrl(resolved, leadTypes) : null;
   if (!url) {
-    throw new Error('For off-market, enter an area as "City, ST" or a 5-digit ZIP.');
+    throw new Error(`Couldn't find "${box.area}". Try a city like "Dallas, TX" or a ZIP code.`);
   }
 
   const rows = await runActorSync(
     OFFMARKET_ACTOR,
     { startUrls: [{ url }], maxItems: OFFMARKET_MAX_ITEMS, proxy: { useApifyProxy: true } },
     240,
-    OFFMARKET_MAX_ITEMS
+    OFFMARKET_MAX_ITEMS,
+    2 // Propwire is flaky — up to 3 attempts total
   );
 
   // With stacking every result matches all types; the first is the headline badge.
