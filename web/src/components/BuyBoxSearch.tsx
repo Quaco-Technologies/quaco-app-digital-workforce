@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Check,
   ChevronDown,
+  X,
 } from "lucide-react";
 import type { SkipTraceResult, BuyBoxLead } from "@/lib/apify";
 
@@ -216,7 +217,17 @@ export default function BuyBoxSearch({
 }) {
   const [source, setSource] = useState<"forsale" | "offmarket">("offmarket");
   const [leadTypes, setLeadTypes] = useState<string[]>(["preforeclosure"]);
-  const [area, setArea] = useState("");
+  const [areas, setAreas] = useState<string[]>([]); // stacked areas (chips)
+  const [area, setArea] = useState(""); // current text being typed
+
+  const addArea = () => {
+    const a = area.trim();
+    if (a && !areas.includes(a)) setAreas([...areas, a]);
+    setArea("");
+  };
+  const removeArea = (a: string) => setAreas(areas.filter((x) => x !== a));
+  // Everything to search: the committed chips plus anything still in the box.
+  const allAreas = () => Array.from(new Set([...areas, area.trim()].filter(Boolean)));
 
   // Toggle a lead type in/out of the stack; always keep at least one selected.
   const toggleLeadType = (t: string) =>
@@ -261,8 +272,9 @@ export default function BuyBoxSearch({
   const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
 
   const run = async () => {
-    if (!area.trim()) {
-      setError("Enter an area — a city and state, or a ZIP code.");
+    const searchAreas = allAreas();
+    if (!searchAreas.length) {
+      setError("Enter an area — a city and state, a ZIP code, or a state.");
       return;
     }
     setError(null);
@@ -274,7 +286,8 @@ export default function BuyBoxSearch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          area,
+          area: searchAreas[0],
+          areas: searchAreas,
           source,
           leadTypes: source === "offmarket" ? leadTypes : undefined,
           priceMin: num(priceMin),
@@ -370,17 +383,45 @@ export default function BuyBoxSearch({
           </div>
         )}
 
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">Area</label>
+        <label className="block text-xs font-medium text-slate-500 mb-1.5">
+          Areas <span className="text-slate-400 font-normal">· stack cities, ZIPs, or whole states</span>
+        </label>
+        {areas.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {areas.map((a) => (
+              <span
+                key={a}
+                className="flex items-center gap-1 text-[13px] font-medium bg-slate-100 text-slate-700 pl-2.5 pr-1.5 py-1 rounded-full"
+              >
+                {a}
+                <button
+                  type="button"
+                  onClick={() => removeArea(a)}
+                  className="text-slate-400 hover:text-slate-700"
+                  aria-label={`Remove ${a}`}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="relative">
           <MapPin size={15} className="absolute left-3 top-2.5 text-slate-400" />
           <input
             value={area}
             onChange={(e) => setArea(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && run()}
-            placeholder="Atlanta, GA  ·  or a ZIP like 30303"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addArea();
+              }
+            }}
+            placeholder="Atlanta, GA · a ZIP like 30303 · or TX"
             className={`${inputCls} pl-9`}
           />
         </div>
+        <p className="text-xs text-slate-400 mt-1">Press Enter to add another area.</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Field label="Price min">

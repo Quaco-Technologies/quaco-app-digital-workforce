@@ -93,7 +93,8 @@ export interface BuyBoxLead extends Property {
 }
 
 export interface BuyBox {
-  area: string; // "City, ST" or ZIP
+  area: string; // "City, ST" or ZIP (single-area; legacy)
+  areas?: string[]; // stack multiple cities/ZIPs; falls back to `area`
   priceMin?: number;
   priceMax?: number;
   bedsMin?: number;
@@ -126,6 +127,12 @@ export const LEAD_TYPE_LABEL: Record<string, string> = {
   auction: "Auction",
   bank_owned: "Bank-owned",
 };
+
+// The areas to search — the stacked list if given, otherwise the single area.
+function boxAreas(box: BuyBox): string[] {
+  const list = (box.areas?.length ? box.areas : [box.area]).map((a) => (a ?? "").trim());
+  return Array.from(new Set(list.filter(Boolean)));
+}
 
 function requireToken(): string {
   if (!TOKEN) throw new Error("APIFY_TOKEN is not configured on the server.");
@@ -315,13 +322,13 @@ export interface ScrapeResult {
   capped: boolean;
 }
 
-export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
-  const b = await geocodeBounds(box.area);
+// Scrape one area's for-sale listings. A bare state abbrev ("TX") is expanded
+// to its full name so geocoding resolves it to the whole state.
+async function scrapeForSaleOne(area: string, box: BuyBox, maxItems: number) {
+  const geoArea = US_STATES[area.toUpperCase()] ?? area;
+  const b = await geocodeBounds(geoArea);
 
-  const filterState: Record<string, unknown> = {
-    sort: { value: "days" },
-    ah: { value: true },
-  };
+  const filterState: Record<string, unknown> = { sort: { value: "days" }, ah: { value: true } };
   if (box.priceMin != null || box.priceMax != null) {
     filterState.price = {
       ...(box.priceMin != null ? { min: box.priceMin } : {}),
@@ -346,29 +353,54 @@ export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
     ZILLOW_ACTOR,
     { searchUrls: [{ url: searchUrl }], extractionMethod: "PAGINATION" },
     240,
-    SCRAPE_MAX_ITEMS
+    maxItems
   );
-
-  let props = rows
+  const props = rows
     .map(normalizeZillow)
-    .filter((p): p is Property => p !== null && p.status === "FOR_SALE");
+    .filter((p): p is Property => p !== null && p.status === "FOR_SALE")
+    .filter(localityFilter(area));
+  return { props, scanned: rows.length };
+}
 
-  // Keep only what the investor actually asked for.
-  props = props.filter(localityFilter(box.area));
+export async function scrapeProperties(box: BuyBox): Promise<ScrapeResult> {
+  const areas = boxAreas(box);
+  // Split the scrape budget across the stacked areas.
+  const perArea = Math.max(80, Math.floor(SCRAPE_MAX_ITEMS / areas.length));
 
-  // A listing with no published price (auction, coming-soon) can't be evaluated
-  // against a buy box and reads as a broken "$0" card, so it never belongs in
-  // the results — whether or not a price bound was set.
+  const merged: Property[] = [];
+  let scanned = 0;
+  let failures = 0;
+  for (const area of areas) {
+    try {
+      const r = await scrapeForSaleOne(area, box, perArea);
+      scanned += r.scanned;
+      merged.push(...r.props);
+    } catch {
+      failures += 1;
+    }
+  }
+  if (!merged.length && failures === areas.length) {
+    throw new Error(`Couldn't find those areas. Try "Dallas, TX", a ZIP, or a state.`);
+  }
+
+  // Dedup across areas by address.
+  const seen = new Set<string>();
+  let props = merged.filter((p) => {
+    const k = p.address.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  // A listing with no published price (auction, coming-soon) reads as a broken
+  // "$0" card, so it never belongs in the results.
   props = props.filter((p) => p.price > 0);
-
-  // Belt-and-suspenders: re-apply the buy box in case the actor returns a few
-  // out-of-band rows. A criterion the investor set has to be *proven* met.
   if (box.priceMin != null) props = props.filter((p) => p.price >= box.priceMin!);
   if (box.priceMax != null) props = props.filter((p) => p.price <= box.priceMax!);
   if (box.bedsMin != null) props = props.filter((p) => p.beds >= box.bedsMin!);
   if (box.bathsMin != null) props = props.filter((p) => p.baths >= box.bathsMin!);
 
-  return { props, scanned: rows.length, capped: rows.length >= SCRAPE_MAX_ITEMS };
+  return { props, scanned, capped: scanned >= SCRAPE_MAX_ITEMS };
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +434,10 @@ async function resolveOffMarketArea(area: string): Promise<string | null> {
   const t = area.trim();
   if (/^\d{5}$/.test(t)) return t; // ZIP
   if (/^.+,\s*[A-Za-z]{2}$/.test(t)) return t; // already "City, ST"
+  // Whole state — a full name ("Texas") or a bare abbrev ("TX").
+  const abFromName = STATE_ABBR[t.toLowerCase()];
+  if (abFromName) return abFromName;
+  if (/^[A-Za-z]{2}$/.test(t) && US_STATES[t.toUpperCase()]) return t.toUpperCase();
 
   try {
     const url =
@@ -420,30 +456,37 @@ async function resolveOffMarketArea(area: string): Promise<string | null> {
   }
 }
 
-// Build a Propwire search URL for the investor's area. Propwire targets by a
-// location object in the URL — a city needs its state; a ZIP stands alone.
-function propwireUrl(area: string, leadTypes: string[]): string | null {
-  const trimmed = area.trim();
+// One Propwire location object from a normalized "City, ST" or 5-digit ZIP.
+function propwireLocation(normalized: string): Record<string, unknown> | null {
+  const trimmed = normalized.trim();
   const zip = trimmed.match(/^(\d{5})$/);
-  let location: Record<string, unknown> | null = null;
-  if (zip) {
-    location = { searchType: "Z", zip: zip[1], title: `${zip[1]}, USA` };
-  } else {
-    const m = trimmed.match(/^(.+),\s*([A-Za-z]{2})$/);
-    if (m) {
-      const city = m[1].trim();
-      const st = m[2].toUpperCase();
-      location = {
-        searchType: "C",
-        city,
-        state: st,
-        title: `${city}, ${st}, USA`,
-        stateName: US_STATES[st] ?? st,
-      };
-    }
+  if (zip) return { searchType: "Z", zip: zip[1], title: `${zip[1]}, USA` };
+  // Whole state — a bare abbrev resolved upstream ("TX").
+  if (/^[A-Z]{2}$/.test(trimmed) && US_STATES[trimmed]) {
+    return {
+      searchType: "T",
+      state: trimmed,
+      title: `${US_STATES[trimmed]}, USA`,
+      stateName: US_STATES[trimmed],
+    };
   }
-  if (!location) return null;
-  const filters = { locations: [location], lead_type: leadTypes, property_type: ["sfr"] };
+  const m = trimmed.match(/^(.+),\s*([A-Za-z]{2})$/);
+  if (!m) return null;
+  const city = m[1].trim();
+  const st = m[2].toUpperCase();
+  return {
+    searchType: "C",
+    city,
+    state: st,
+    title: `${city}, ${st}, USA`,
+    stateName: US_STATES[st] ?? st,
+  };
+}
+
+// Propwire natively takes a LIST of locations in one search, so stacking
+// cities/ZIPs is one actor call.
+function propwireUrl(locations: Record<string, unknown>[], leadTypes: string[]): string {
+  const filters = { locations, lead_type: leadTypes, property_type: ["sfr"] };
   return "https://propwire.com/search?filters=" + encodeURIComponent(JSON.stringify(filters));
 }
 
@@ -484,11 +527,17 @@ const OFFMARKET_MAX_ITEMS = 120;
 export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
   const leadTypes = (box.leadTypes ?? []).filter((t) => LEAD_TYPE_LABEL[t]);
   if (!leadTypes.length) leadTypes.push("preforeclosure");
-  const resolved = await resolveOffMarketArea(box.area);
-  const url = resolved ? propwireUrl(resolved, leadTypes) : null;
-  if (!url) {
-    throw new Error(`Couldn't find "${box.area}". Try a city like "Dallas, TX" or a ZIP code.`);
+
+  // Stack every area the investor entered into one Propwire search.
+  const areas = boxAreas(box);
+  const resolved = (await Promise.all(areas.map(resolveOffMarketArea))).filter(
+    (a): a is string => Boolean(a)
+  );
+  const locations = resolved.map(propwireLocation).filter((l): l is Record<string, unknown> => Boolean(l));
+  if (!locations.length) {
+    throw new Error(`Couldn't find those areas. Try a city like "Dallas, TX" or a ZIP code.`);
   }
+  const url = propwireUrl(locations, leadTypes);
 
   const rows = await runActorSync(
     OFFMARKET_ACTOR,
@@ -543,12 +592,13 @@ export async function runBuyBox(box: BuyBox): Promise<{
   leads: BuyBoxLead[];
 }> {
   const startedAt = Date.now();
+  const areaLabel = boxAreas(box).join(" · ") || box.area;
   const { props: all, scanned, capped } =
     box.source === "offmarket" ? await scrapeOffMarket(box) : await scrapeProperties(box);
   const wanted = Math.max(1, Math.min(box.limit ?? 25, 100));
 
   if (!all.length) {
-    return { area: box.area, found: 0, scanned, capped, traced: 0, paid: 0, cached: 0, noPhone: 0, leads: [] };
+    return { area: areaLabel, found: 0, scanned, capped, traced: 0, paid: 0, cached: 0, noPhone: 0, leads: [] };
   }
 
   // Asking for 50 means 50 owners you can actually call, so we trace past that
@@ -629,7 +679,7 @@ export async function runBuyBox(box: BuyBox): Promise<{
 
   const delivered = leads.slice(0, wanted);
   return {
-    area: box.area,
+    area: areaLabel,
     found: all.length,
     scanned,
     capped,

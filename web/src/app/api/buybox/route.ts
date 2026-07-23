@@ -66,9 +66,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  if (!body.area?.trim()) {
+  const hasArea = body.area?.trim() || (body.areas ?? []).some((a) => a?.trim());
+  if (!hasArea) {
     return NextResponse.json(
-      { error: "Enter an area — a city and state, or a ZIP code." },
+      { error: "Enter an area — a city and state, a ZIP code, or a state." },
       { status: 400 }
     );
   }
