@@ -192,6 +192,12 @@ export function normalizeSkipRow(row: Record<string, unknown>): SkipTraceResult 
   };
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Start an actor run, poll until it finishes, then read its dataset. This is
+// more reliable than run-sync-get-dataset-items, which intermittently returns an
+// empty array even when the run actually produced rows. Retries a failed run
+// with a short backoff so a one-off flake doesn't reach the investor.
 async function runActorSync(
   actor: string,
   input: unknown,
@@ -200,24 +206,44 @@ async function runActorSync(
   retries = 1
 ): Promise<Record<string, unknown>[]> {
   const token = requireToken();
-  // These actors bill per row returned, and maxItems is enforced by the Apify
-  // platform — rows beyond it are never produced, so they are never charged.
-  const cap = maxItems ? `&maxItems=${maxItems}` : "";
-  const url = `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${token}&timeout=${timeoutSecs}${cap}`;
+  // NOTE: the ?maxItems query param aborts the async run for these actors, so
+  // production is capped via each actor's own input field (resultsLimit /
+  // maxItems), set by the caller; maxItems here only limits the dataset read.
 
-  // Some actors (Propwire especially) fail intermittently — a failed run comes
-  // back as a 4xx/5xx from the sync endpoint — so retry before giving up rather
-  // than surfacing a one-off flake as an error to the investor. A short, growing
-  // backoff lets a transient block/edge blip clear between attempts.
   for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    if (attempt > 0) await sleep(1500 * attempt);
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      if (res.ok) return (await res.json()) as Record<string, unknown>[];
+      const startRes = await fetch(
+        `https://api.apify.com/v2/acts/${actor}/runs?token=${token}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }
+      );
+      if (!startRes.ok) continue;
+      const run = ((await startRes.json()) as { data: { id: string; status: string; defaultDatasetId: string } }).data;
+
+      // Poll until terminal or timeout.
+      const deadline = Date.now() + timeoutSecs * 1000;
+      let status = run.status;
+      let datasetId = run.defaultDatasetId;
+      while ((status === "READY" || status === "RUNNING") && Date.now() < deadline) {
+        await sleep(2500);
+        const poll = await fetch(`https://api.apify.com/v2/actor-runs/${run.id}?token=${token}`);
+        if (!poll.ok) continue;
+        const d = ((await poll.json()) as { data: { status: string; defaultDatasetId: string } }).data;
+        status = d.status;
+        datasetId = d.defaultDatasetId;
+      }
+      if (status !== "SUCCEEDED") continue; // failed/aborted/timed-out — retry
+
+      const limit = maxItems ? `&limit=${maxItems}` : "";
+      const itemsRes = await fetch(
+        `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&clean=true${limit}`
+      );
+      if (!itemsRes.ok) continue;
+      return (await itemsRes.json()) as Record<string, unknown>[];
     } catch {
       // network blip — fall through to retry
     }
@@ -353,7 +379,7 @@ async function scrapeForSaleOne(area: string, box: BuyBox, maxItems: number) {
 
   const rows = await runActorSync(
     ZILLOW_ACTOR,
-    { searchUrls: [{ url: searchUrl }], extractionMethod: "PAGINATION" },
+    { searchUrls: [{ url: searchUrl }], extractionMethod: "PAGINATION", resultsLimit: maxItems },
     240,
     maxItems
   );
