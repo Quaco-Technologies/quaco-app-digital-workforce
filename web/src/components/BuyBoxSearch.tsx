@@ -130,6 +130,34 @@ const BEDS_OPTS: [string, string][] = [
 const BATHS_OPTS: [string, string][] = [
   ["", "Any"], ["1", "1+"], ["2", "2+"], ["3", "3+"], ["4", "4+"],
 ];
+// Parse a typed or pasted blob into individual areas. Handles a list of ZIPs
+// ("75061, 75062 75063"), one-per-line cities, and comma-joined "City, ST"
+// pairs — without splitting a single "Dallas, TX" on its internal comma.
+function parseAreas(text: string): string[] {
+  const out: string[] = [];
+  for (const seg of text.split(/[\n;]+/)) {
+    const s = seg.trim();
+    if (!s) continue;
+    // Pull out every "City, ST" pair first.
+    const cityRe = /([A-Za-z][A-Za-z .'-]*?),\s*([A-Za-z]{2})(?![A-Za-z])/g;
+    const cities: string[] = [];
+    const rest = s.replace(cityRe, (_f, c, st) => {
+      cities.push(`${c.trim()}, ${st.toUpperCase()}`);
+      return " ";
+    });
+    if (cities.length) {
+      out.push(...cities);
+      (rest.match(/\b\d{5}\b/g) ?? []).forEach((z) => out.push(z)); // any leftover ZIPs
+      continue;
+    }
+    // No city pairs — a list of ZIPs, or a single bare city / ZIP / state.
+    const tokens = s.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean);
+    if (tokens.length > 1 && tokens.every((t) => /^\d{5}$/.test(t))) out.push(...tokens);
+    else out.push(s);
+  }
+  return out;
+}
+
 // Off-market lead types (Propwire). Keep in sync with LEAD_TYPE_LABEL in apify.ts.
 const OFF_MARKET_TYPES: [string, string][] = [
   ["preforeclosure", "Pre-foreclosure"],
@@ -221,13 +249,14 @@ export default function BuyBoxSearch({
   const [area, setArea] = useState(""); // current text being typed
 
   const addArea = () => {
-    const a = area.trim();
-    if (a && !areas.includes(a)) setAreas([...areas, a]);
+    const parsed = parseAreas(area);
+    if (parsed.length) setAreas(Array.from(new Set([...areas, ...parsed])));
     setArea("");
   };
   const removeArea = (a: string) => setAreas(areas.filter((x) => x !== a));
-  // Everything to search: the committed chips plus anything still in the box.
-  const allAreas = () => Array.from(new Set([...areas, area.trim()].filter(Boolean)));
+  // Everything to search: committed chips plus whatever's still in the box
+  // (parsed, so a pasted list works even if they hit Find without Enter).
+  const allAreas = () => Array.from(new Set([...areas, ...parseAreas(area)]));
 
   // Toggle a lead type in/out of the stack; always keep at least one selected.
   const toggleLeadType = (t: string) =>
@@ -421,7 +450,9 @@ export default function BuyBoxSearch({
             className={`${inputCls} pl-9`}
           />
         </div>
-        <p className="text-xs text-slate-400 mt-1">Press Enter to add another area.</p>
+        <p className="text-xs text-slate-400 mt-1">
+          Paste a list of ZIPs or cities, or type one — press Enter to add.
+        </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Field label="Price min">
