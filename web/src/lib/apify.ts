@@ -519,10 +519,10 @@ function normalizePropwire(row: Record<string, unknown>): Property | null {
   };
 }
 
-// Propwire is slower per item than Zillow (~5 items/sec), so cap lower to keep
-// the scrape well inside the request budget and leave time for skip tracing.
-// 120 pre-foreclosures is plenty to yield 50 with-phone leads at a ~65% rate.
-const OFFMARKET_MAX_ITEMS = 120;
+// Hard ceiling on the off-market scrape. Propwire is slower per item than
+// Zillow (~5 items/sec), so this bounds the scrape time; the actual number
+// scraped scales with how many leads were requested (see below).
+const OFFMARKET_MAX_ITEMS = 250;
 
 export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
   const leadTypes = (box.leadTypes ?? []).filter((t) => LEAD_TYPE_LABEL[t]);
@@ -539,11 +539,16 @@ export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
   }
   const url = propwireUrl(locations, leadTypes);
 
+  // Scrape enough to yield the requested lead count after the ~65% phone rate,
+  // with headroom — but no more, so small searches stay fast.
+  const wanted = Math.max(1, Math.min(box.limit ?? 25, 100));
+  const maxItems = Math.min(OFFMARKET_MAX_ITEMS, Math.ceil(wanted / 0.6) + 30);
+
   const rows = await runActorSync(
     OFFMARKET_ACTOR,
-    { startUrls: [{ url }], maxItems: OFFMARKET_MAX_ITEMS, proxy: { useApifyProxy: true } },
+    { startUrls: [{ url }], maxItems, proxy: { useApifyProxy: true } },
     240,
-    OFFMARKET_MAX_ITEMS,
+    maxItems,
     2 // Propwire is flaky — up to 3 attempts total
   );
 
@@ -560,7 +565,7 @@ export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
   if (box.bedsMin != null) props = props.filter((p) => !p.beds || p.beds >= box.bedsMin!);
   if (box.bathsMin != null) props = props.filter((p) => !p.baths || p.baths >= box.bathsMin!);
 
-  return { props, scanned: rows.length, capped: rows.length >= OFFMARKET_MAX_ITEMS };
+  return { props, scanned: rows.length, capped: rows.length >= maxItems };
 }
 
 // Share of traced owners that come back with a phone number, measured on live
