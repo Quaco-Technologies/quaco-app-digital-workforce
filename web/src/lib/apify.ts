@@ -207,8 +207,10 @@ async function runActorSync(
 
   // Some actors (Propwire especially) fail intermittently — a failed run comes
   // back as a 4xx/5xx from the sync endpoint — so retry before giving up rather
-  // than surfacing a one-off flake as an error to the investor.
+  // than surfacing a one-off flake as an error to the investor. A short, growing
+  // backoff lets a transient block/edge blip clear between attempts.
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -549,7 +551,7 @@ export async function scrapeOffMarket(box: BuyBox): Promise<ScrapeResult> {
     { startUrls: [{ url }], maxItems, proxy: { useApifyProxy: true } },
     240,
     maxItems,
-    2 // Propwire is flaky — up to 3 attempts total
+    3 // Propwire is flaky — up to 4 attempts with backoff
   );
 
   // With stacking every result matches all types; the first is the headline badge.
